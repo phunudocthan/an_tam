@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { completeSetupAction } from "@/app/actions";
 import { BODY_RULE_OPTIONS, DEFAULT_GOAL_PRESET, WEEKDAY_OPTIONS, WEEKLY_PACTS } from "@/lib/constants";
@@ -19,19 +20,44 @@ export default async function SetupPage() {
 
   const state = await loadAppState(user);
 
-  if (state.kind === "ready") {
+  if (state.kind === "missing_env" || state.kind === "blocked" || state.kind === "db_not_ready") {
     redirect("/");
   }
+
+  const isEditing = state.kind === "ready";
+  const currentProfile = state.kind === "needs_setup" ? state.profile : null;
+  const currentStudyGoal = isEditing ? state.data.viewer.goals.study : null;
+  const currentScreenGoal = isEditing ? state.data.viewer.goals.screen_time : null;
+  const currentBodyGoal = isEditing ? state.data.viewer.goals.body : null;
+  const bodyRuleType = readBodyRuleType(currentBodyGoal?.config);
+  const bodyDays = readBodyDays(currentBodyGoal?.config);
 
   return (
     <main className="page-shell px-5 py-8 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Thiết lập</p>
-          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt nhịp riêng của bạn</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)]">
-            Mỗi người có mục tiêu riêng. Chốt vài rule cơ bản trước để từ mai hai đứa theo dõi nhau cho dễ.
-          </p>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">
+              {isEditing ? "Chỉnh nhịp" : "Thiết lập"}
+            </p>
+            <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">
+              {isEditing ? "Chỉnh lại nhịp của bạn" : "Chốt nhịp riêng của bạn"}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)]">
+              {isEditing
+                ? "Đổi target, lịch Body hoặc kèo tuần ở đây. Lưu xong là quay lại màn hôm nay."
+                : "Mỗi người có mục tiêu riêng. Chốt vài rule cơ bản trước để từ mai hai đứa theo dõi nhau cho dễ."}
+            </p>
+          </div>
+
+          {isEditing ? (
+            <Link
+              href="/"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-black/10 bg-white/78 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
+            >
+              Quay lại hôm nay
+            </Link>
+          ) : null}
         </div>
 
         <form action={completeSetupAction} className="grid gap-6">
@@ -43,7 +69,7 @@ export default async function SetupPage() {
                 <input
                   required
                   name="displayName"
-                  defaultValue={state.kind === "needs_setup" ? (state.profile?.display_name ?? "") : ""}
+                  defaultValue={isEditing ? state.data.viewer.name : (currentProfile?.display_name ?? "")}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -51,7 +77,7 @@ export default async function SetupPage() {
                 <span>Mục tiêu Body</span>
                 <select
                   name="focusMode"
-                  defaultValue={state.kind === "needs_setup" ? (state.profile?.focus_mode ?? "gain") : "gain"}
+                  defaultValue={isEditing ? (state.data.viewer.focusMode ?? "gain") : (currentProfile?.focus_mode ?? "gain")}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 >
                   <option value="gain">Tăng cân / bulk</option>
@@ -73,7 +99,7 @@ export default async function SetupPage() {
                   step={5}
                   type="number"
                   name="studyMinutes"
-                  defaultValue={DEFAULT_GOAL_PRESET.studyMinutes}
+                  defaultValue={currentStudyGoal?.target_value ?? DEFAULT_GOAL_PRESET.studyMinutes}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -86,7 +112,7 @@ export default async function SetupPage() {
                   step={5}
                   type="number"
                   name="screenTimeMinutes"
-                  defaultValue={DEFAULT_GOAL_PRESET.screenTimeMinutes}
+                  defaultValue={currentScreenGoal?.target_value ?? DEFAULT_GOAL_PRESET.screenTimeMinutes}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -97,7 +123,7 @@ export default async function SetupPage() {
                 <span>Cách chấm mục Body</span>
                 <select
                   name="bodyRuleType"
-                  defaultValue={DEFAULT_GOAL_PRESET.bodyRuleType}
+                  defaultValue={bodyRuleType}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 >
                   {BODY_RULE_OPTIONS.map((option) => (
@@ -113,7 +139,7 @@ export default async function SetupPage() {
                 <input
                   required
                   name="bodyLabel"
-                  defaultValue={DEFAULT_GOAL_PRESET.bodyLabel}
+                  defaultValue={currentBodyGoal?.title ?? DEFAULT_GOAL_PRESET.bodyLabel}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -130,7 +156,7 @@ export default async function SetupPage() {
                           type="checkbox"
                           name="bodyDays"
                           value={day.value}
-                          defaultChecked={(DEFAULT_GOAL_PRESET.bodyDays as readonly number[]).includes(day.value)}
+                          defaultChecked={bodyDays.includes(day.value)}
                         />
                       {day.label}
                     </label>
@@ -147,7 +173,7 @@ export default async function SetupPage() {
                 <span>Mẫu kèo</span>
                 <select
                   name="weeklyPactKey"
-                  defaultValue={WEEKLY_PACTS[0].key}
+                  defaultValue={isEditing ? (state.data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key) : WEEKLY_PACTS[0].key}
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 >
                   {WEEKLY_PACTS.map((pact) => (
@@ -161,6 +187,7 @@ export default async function SetupPage() {
                 <span>Ghi chú thêm</span>
                 <input
                   name="weeklyPactNote"
+                  defaultValue={isEditing ? (state.data.weeklyPact?.note ?? "") : ""}
                   placeholder="Ví dụ: ai xong trước thì nhắc người kia một câu"
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
@@ -170,19 +197,43 @@ export default async function SetupPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-[var(--muted)]">
-              {state.kind === "needs_setup"
+              {!isEditing
                 ? `Hiện đã có ${state.memberCount}/2 người xong phần thiết lập.`
-                : "Xong bước này là vào thẳng màn hôm nay."}
+                : "Lưu xong là quay lại màn hôm nay."}
             </p>
             <button
               type="submit"
               className="rounded-full bg-[var(--foreground)] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90"
             >
-              Lưu và vào app
+              {isEditing ? "Lưu thay đổi" : "Lưu và vào app"}
             </button>
           </div>
         </form>
       </div>
     </main>
   );
+}
+
+function readBodyRuleType(config: Record<string, unknown> | null | undefined) {
+  const ruleType = config?.ruleType;
+
+  if (ruleType === "workout" || ruleType === "nutrition" || ruleType === "recovery") {
+    return ruleType;
+  }
+
+  return DEFAULT_GOAL_PRESET.bodyRuleType;
+}
+
+function readBodyDays(config: Record<string, unknown> | null | undefined) {
+  const raw = config?.weekdays;
+
+  if (!Array.isArray(raw)) {
+    return [...DEFAULT_GOAL_PRESET.bodyDays];
+  }
+
+  const values = raw
+    .map((value) => Number(value))
+    .filter((value) => WEEKDAY_OPTIONS.some((option) => option.value === value));
+
+  return values.length > 0 ? values : [...DEFAULT_GOAL_PRESET.bodyDays];
 }

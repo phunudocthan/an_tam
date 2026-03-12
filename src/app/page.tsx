@@ -11,6 +11,7 @@ import {
   LogOut,
   MoonStar,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
   Sparkles,
   TimerReset,
@@ -169,6 +170,13 @@ function PageHeader({ data, activeGoal }: { data: DashboardData; activeGoal: Goa
             value={data.sharedGraceProtectedDates.includes(data.todayKey) ? "Đang giữ hôm nay" : "1 lần / 7 ngày"}
           />
           <StatPill icon={Clock3} label="Đang mở" value={goalTabLabel(activeGoal)} />
+          <Link
+            href="/setup"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/78 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
+          >
+            <SlidersHorizontal className="size-4" />
+            Chỉnh nhịp
+          </Link>
           <form action={logoutAction}>
             <button
               type="submit"
