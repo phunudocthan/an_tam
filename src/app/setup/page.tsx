@@ -28,18 +28,18 @@ export default async function SetupPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Thiết lập</p>
-          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt cách bạn muốn đi qua mỗi ngày.</h1>
+          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt nhịp riêng của bạn</h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)]">
-            Thiết lập này không phải để chấm điểm cho đẹp. Nó chỉ định nghĩa thế nào là một ngày đủ của riêng bạn để hai người còn giữ được cùng một nhịp.
+            Mỗi người có mục tiêu riêng. Chốt vài rule cơ bản trước để từ mai hai đứa theo dõi nhau cho dễ.
           </p>
         </div>
 
         <form action={completeSetupAction} className="grid gap-6">
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">1. Bạn muốn hiện lên thế nào?</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">1. Thông tin của bạn</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Tên hiện trong app</span>
+                <span>Tên hiển thị</span>
                 <input
                   required
                   name="displayName"
@@ -48,7 +48,7 @@ export default async function SetupPage() {
                 />
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Hướng body của bạn</span>
+                <span>Mục tiêu Body</span>
                 <select
                   name="focusMode"
                   defaultValue={state.kind === "needs_setup" ? (state.profile?.focus_mode ?? "gain") : "gain"}
@@ -62,10 +62,10 @@ export default async function SetupPage() {
           </section>
 
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">2. Nhịp riêng của bạn mỗi ngày</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">2. Rule mỗi ngày</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Mỗi ngày bạn muốn học bao lâu?</span>
+                <span>Mục tiêu học mỗi ngày (phút)</span>
                 <input
                   required
                   min={15}
@@ -78,7 +78,7 @@ export default async function SetupPage() {
                 />
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Giới hạn màn hình mỗi ngày</span>
+                <span>Giới hạn điện thoại (phút)</span>
                 <input
                   required
                   min={15}
@@ -94,7 +94,7 @@ export default async function SetupPage() {
 
             <div className="mt-5 grid gap-4">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Hôm nay body được tính theo gì?</span>
+                <span>Cách chấm mục Body</span>
                 <select
                   name="bodyRuleType"
                   defaultValue={DEFAULT_GOAL_PRESET.bodyRuleType}
@@ -106,13 +106,10 @@ export default async function SetupPage() {
                     </option>
                   ))}
                 </select>
-                <span className="block text-xs leading-6 text-[var(--muted)]">
-                  Chọn kiểu rule khiến bạn thấy “hôm nay mình đã giữ lời với bản thân”.
-                </span>
               </label>
 
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Câu nhắc cho mục body</span>
+                <span>Tên ngắn cho mục Body</span>
                 <input
                   required
                   name="bodyLabel"
@@ -122,7 +119,7 @@ export default async function SetupPage() {
               </label>
 
               <div className="space-y-3 text-sm text-[var(--muted)]">
-                <span className="block">Ngày nào trong tuần mục này được tính?</span>
+                <span className="block">Những ngày áp dụng</span>
                 <div className="flex flex-wrap gap-2">
                   {WEEKDAY_OPTIONS.map((day) => (
                     <label
@@ -144,10 +141,10 @@ export default async function SetupPage() {
           </section>
 
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">3. Hai người sẽ giữ nhau thế nào trong tuần này?</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">3. Kèo chung trong tuần</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Cách giữ nhịp</span>
+                <span>Mẫu kèo</span>
                 <select
                   name="weeklyPactKey"
                   defaultValue={WEEKLY_PACTS[0].key}
@@ -161,10 +158,10 @@ export default async function SetupPage() {
                 </select>
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Một câu để nhớ</span>
+                <span>Ghi chú thêm</span>
                 <input
                   name="weeklyPactNote"
-                  placeholder="Ví dụ: ai xong sớm thì nhắc người kia một câu ngắn"
+                  placeholder="Ví dụ: ai xong trước thì nhắc người kia một câu"
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
@@ -174,14 +171,14 @@ export default async function SetupPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-[var(--muted)]">
               {state.kind === "needs_setup"
-                ? `Hiện đã có ${state.memberCount}/2 người trong pair này.`
-                : "Sau bước này bạn sẽ vào thẳng Today board."}
+                ? `Hiện đã có ${state.memberCount}/2 người xong phần thiết lập.`
+                : "Xong bước này là vào thẳng màn hôm nay."}
             </p>
             <button
               type="submit"
               className="rounded-full bg-[var(--foreground)] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90"
             >
-              Lưu setup và vào app
+              Lưu và vào app
             </button>
           </div>
         </form>

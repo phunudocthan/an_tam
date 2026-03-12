@@ -46,12 +46,12 @@ type GoalTab = GoalCategory;
 
 const DASHBOARD_TABS = [
   { key: "today" as const, label: "Hôm nay", icon: HeartHandshake },
-  { key: "review" as const, label: "Nhìn lại", icon: Sparkles },
+  { key: "review" as const, label: "Tổng kết", icon: Sparkles },
 ] satisfies Array<{ key: DashboardTab; label: string; icon: LucideIcon }>;
 
 const GOAL_TABS = [
   { key: "study" as const, label: "Học", icon: MoonStar, accent: "var(--gold)" },
-  { key: "screen_time" as const, label: "Màn hình", icon: Smartphone, accent: "var(--accent)" },
+  { key: "screen_time" as const, label: "Điện thoại", icon: Smartphone, accent: "var(--accent)" },
   { key: "body" as const, label: "Body", icon: Dumbbell, accent: "var(--rose)" },
 ] satisfies Array<{ key: GoalTab; label: string; icon: LucideIcon; accent: string }>;
 
@@ -154,10 +154,10 @@ function PageHeader({ data, activeGoal }: { data: DashboardData; activeGoal: Goa
             An Tam
           </div>
           <h1 className="display-type mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-            Hôm nay của hai người đang ở đâu?
+            Xem hôm nay của hai đứa đang tới đâu rồi.
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-            Mình đang ở đâu, người còn lại đang ở đâu, và còn thiếu gì để qua ngày.
+            Mở ra là biết ai đã xong, ai còn đang làm, và còn thiếu gì để khóa ngày.
           </p>
         </div>
 
@@ -192,7 +192,7 @@ function TodayTab({ data, activeGoal }: { data: DashboardData; activeGoal: GoalT
   const activeGoalMeta = GOAL_TABS.find((goal) => goal.key === activeGoal) ?? GOAL_TABS[0];
   const activeGoalStage = data.viewerLane.goalStages[activeGoal];
   const activePartnerGoalStage = data.partnerLane?.goalStages[activeGoal] ?? null;
-          const activeGoalTarget =
+  const activeGoalTarget =
     activeGoal === "body"
       ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
       : getTargetText(activeGoalConfig, activeGoal);
@@ -282,8 +282,8 @@ function CoupleLaneCard({ data }: { data: DashboardData }) {
     <section className="glass-card rounded-[2rem] p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhịp của hai người</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Ai đang ở đâu trong ngày?</h2>
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Tiến độ của hai đứa</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Hôm nay mỗi người đang tới đâu?</h2>
         </div>
         <div className="rounded-full border border-black/10 bg-white/72 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
           {todayStageLabel(data.todayStage)}
@@ -325,7 +325,7 @@ function LaneCard({
         <div className="flex flex-wrap gap-2">
           <StagePill label="Hôm nay" stage={lane.dayStage} compact />
           <div className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--muted)]">
-            Streak {lane.streak} ngày
+            Streak cá nhân {lane.streak} ngày
           </div>
         </div>
       </div>
@@ -354,24 +354,16 @@ function LaneCard({
 }
 
 function ProofTray({ data }: { data: DashboardData }) {
-  const partnerProofs = data.visibleProofs.filter((proof) => !proof.isViewerProof);
-  const viewerProofs = data.visibleProofs.filter((proof) => proof.isViewerProof);
-  const trayTitle = partnerProofs.length > 0
-    ? `${data.partnerLane?.name ?? "Người còn lại"} vừa gửi gì?`
-    : viewerProofs.length > 0
-      ? "Proof của hôm nay đang nằm ở đây."
-      : "Khay proof đang trống.";
-
   return (
     <section className="glass-card rounded-[2rem] p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Proof đang còn sống</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{trayTitle}</h2>
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Proof còn xem được</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Ảnh hôm nay của hai đứa sẽ hiện ở đây tới trưa mai.</h2>
         </div>
         <div className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/72 px-4 py-2 text-sm text-[var(--muted)]">
           <Eye className="size-4" />
-          Tới trưa hôm sau
+          Tới trưa mai
         </div>
       </div>
 
@@ -383,7 +375,7 @@ function ProofTray({ data }: { data: DashboardData }) {
         </div>
       ) : (
         <div className="mt-5 rounded-[1.5rem] border border-dashed border-black/12 bg-white/68 p-4 text-sm leading-7 text-[var(--muted)]">
-          Hôm nay chưa có ảnh nào đang sống trong khay proof. Khi một người lưu ảnh, người còn lại sẽ thấy nó ở đây ngay.
+          Hôm nay chưa có ảnh nào ở đây. Khi một người lưu ảnh, người kia sẽ thấy ngay trong khung này.
         </div>
       )}
     </section>
@@ -402,7 +394,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
             <span className="text-sm text-[var(--muted)]">{proof.ownerName}</span>
           </div>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            {proof.note?.trim() ? proof.note : "Không để lại note. Proof này chỉ còn xem được trong cửa sổ ngắn."}
+            {proof.note?.trim() ? proof.note : "Không có ghi chú thêm."}
           </p>
         </div>
 
@@ -416,16 +408,16 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
         </div>
       </div>
 
-        <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
+      <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
         <div className="overflow-hidden rounded-[1.25rem] border border-black/8 bg-[#f4efe7]">
           {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase proof URLs are short-lived in this MVP. */}
           <img src={proof.imageUrl} alt={`${proof.ownerName} - ${goalTabLabel(proof.category)}`} className="h-full min-h-[12rem] w-full object-cover" />
         </div>
 
-          <div className="space-y-3">
-            <div>
+        <div className="space-y-3">
+          <div>
             <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Phản hồi</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {proof.reactions.length > 0 ? (
                 proof.reactions.map((reaction) => (
                   <span
@@ -437,7 +429,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
                 ))
               ) : (
                 <span className="rounded-full border border-dashed border-black/12 bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--muted)]">
-                  Chưa có ai thả reaction
+                  Chưa có phản hồi nào
                 </span>
               )}
             </div>
@@ -445,7 +437,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
 
           {!proof.isViewerProof ? (
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Một phản hồi nhỏ là đủ</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Thả một phản hồi là đủ</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {PROOF_REACTION_OPTIONS.map((option) => {
                   const active = proof.viewerReaction === option.key;
@@ -472,7 +464,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
             </div>
           ) : (
             <div className="rounded-[1.25rem] border border-black/8 bg-white/78 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
-              Khi người còn lại bấm một reaction, nó sẽ hiện ngay ở đây.
+              Ảnh của bạn sẽ nằm ở đây tới trưa mai để người kia kịp thấy.
             </div>
           )}
         </div>
@@ -498,7 +490,7 @@ function GoalEditorCard({
         <form action={saveCheckinAction} className="flex flex-col gap-4">
           <input type="hidden" name="category" value="study" />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Số phút học hôm nay</span>
+            <span>Học hôm nay (phút)</span>
             <input
               type="number"
               min={0}
@@ -509,14 +501,18 @@ function GoalEditorCard({
           </label>
           <ProofUploadField
             name="studyProof"
-            label="Gửi một ảnh"
+            label="Ảnh check-in"
             buttonLabel="Chọn ảnh"
             accept={PROOF_INPUT_ACCEPT}
-            helper="Tới trưa mai"
-            description="Người còn lại sẽ thấy ảnh này trong khay proof của hôm nay."
+            helper={
+              data.viewer.today?.study_had_proof
+                ? "Đã có ảnh hôm nay, chọn ảnh mới sẽ thay ảnh cũ"
+                : "Người kia xem được tới trưa mai"
+            }
+            description="Ảnh này sẽ hiện ở đây để người kia kịp thấy."
           />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Note ngắn</span>
+            <span>Ghi chú</span>
             <textarea
               name="studyNote"
               rows={3}
@@ -525,7 +521,7 @@ function GoalEditorCard({
             />
           </label>
           <div className="pt-1">
-            <SaveButton label="Lưu study" fullWidth />
+            <SaveButton label="Lưu mục học" fullWidth />
           </div>
         </form>
       ) : null}
@@ -534,7 +530,7 @@ function GoalEditorCard({
         <form action={saveCheckinAction} className="flex flex-col gap-4">
           <input type="hidden" name="category" value="screen_time" />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Màn hình hôm nay (phút)</span>
+            <span>Điện thoại hôm nay (phút)</span>
             <input
               type="number"
               min={0}
@@ -545,14 +541,14 @@ function GoalEditorCard({
           </label>
           <ProofUploadField
             name="screenTimeProof"
-            label="Screenshot"
-            buttonLabel="Chọn screenshot"
+            label="Ảnh màn hình"
+            buttonLabel="Chọn ảnh"
             accept={PROOF_INPUT_ACCEPT}
-            helper="Không bắt buộc"
-            description="Nếu có, người còn lại sẽ thấy nó trong khay proof tới trưa mai."
+            helper="Không bắt buộc. Nếu có, người kia xem được tới trưa mai."
+            description="Nếu muốn, bạn có thể thêm ảnh để người kia nhìn dễ hơn."
           />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Note ngắn</span>
+            <span>Ghi chú</span>
             <textarea
               name="screenTimeNote"
               rows={3}
@@ -561,7 +557,7 @@ function GoalEditorCard({
             />
           </label>
           <div className="pt-1">
-            <SaveButton label="Lưu screen time" fullWidth />
+            <SaveButton label="Lưu mục điện thoại" fullWidth />
           </div>
         </form>
       ) : null}
@@ -579,28 +575,32 @@ function GoalEditorCard({
                   className="mt-1 size-4 shrink-0"
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium leading-7">Hôm nay tôi đã bám đúng plan body của mình.</span>
+                  <span className="block text-sm font-medium leading-7">Hôm nay mình đã làm đúng phần Body của mình.</span>
                   <span className="block text-sm leading-7 text-[var(--muted)]">
-                    Dùng cho gym, ăn uống hoặc recovery, tùy rule riêng của bạn.
+                    Dùng cho tập luyện, ăn uống hoặc recovery, tùy rule bạn đã chọn.
                   </span>
                 </span>
               </label>
               <ProofUploadField
                 name="bodyProof"
-                label="Gửi một ảnh"
+                label="Ảnh check-in"
                 buttonLabel="Chọn ảnh"
                 accept={PROOF_INPUT_ACCEPT}
-                helper="Cần để pass"
-                description="Ảnh này sẽ hiện ở khay proof để người còn lại kịp thấy nỗ lực của bạn."
+                helper={
+                  data.viewer.today?.body_had_proof
+                    ? "Đã có ảnh hôm nay, chọn ảnh mới sẽ thay ảnh cũ"
+                    : "Người kia xem được tới trưa mai"
+                }
+                description="Ảnh này sẽ hiện ở đây để người kia kịp thấy."
               />
             </>
           ) : (
             <div className="rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
-              Hôm nay không nằm trong lịch body của bạn. Mục này không chặn việc khóa ngày, nên bạn không cần cố điền cho đủ.
+              Hôm nay không nằm trong lịch Body của bạn, nên mục này không ảnh hưởng đến việc khóa ngày.
             </div>
           )}
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Note ngắn</span>
+            <span>Ghi chú</span>
             <textarea
               name="bodyNote"
               rows={3}
@@ -609,7 +609,7 @@ function GoalEditorCard({
             />
           </label>
           <div className="pt-1">
-            <SaveButton label="Lưu body" fullWidth />
+            <SaveButton label="Lưu mục Body" fullWidth />
           </div>
         </form>
       ) : null}
@@ -642,15 +642,15 @@ function WeeklyPactCard({ data }: { data: DashboardData }) {
     <section className="glass-card rounded-[2rem] p-5">
       <div className="flex items-center gap-2 text-[var(--foreground)]">
         <TimerReset className="size-4" />
-        <h2 className="font-semibold">Pact tuần</h2>
+        <h2 className="font-semibold">Kèo tuần</h2>
       </div>
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-        Đây là cách hai người giữ nhau trong cùng một phe. Nó không thay streak, chỉ làm nhịp chung đỡ lạnh hơn.
+        Đây là kèo chung của tuần này. Không bắt buộc phải hoàn hảo, nhưng giúp hai đứa nhìn cùng một hướng.
       </p>
 
       <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
         <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Cách giữ nhịp tuần này</span>
+          <span>Mẫu kèo</span>
           <select
             name="templateKey"
             defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
@@ -664,16 +664,16 @@ function WeeklyPactCard({ data }: { data: DashboardData }) {
           </select>
         </label>
         <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Một câu để nhớ</span>
+          <span>Ghi chú thêm</span>
           <textarea
             name="note"
             rows={3}
             defaultValue={data.weeklyPact?.note ?? ""}
-            placeholder="Ví dụ: ai xong sớm thì chỉ nhắc người kia một câu ngắn"
+            placeholder="Ví dụ: ai xong trước thì nhắc người kia một câu"
             className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
           />
         </label>
-        <SaveButton label="Lưu pact tuần" subtle />
+        <SaveButton label="Lưu kèo tuần" subtle />
       </form>
     </section>
   );
@@ -685,25 +685,27 @@ function ReviewTab({ data }: { data: DashboardData }) {
       <section className="glass-card rounded-[2rem] p-5">
         <div className="flex items-center gap-2 text-[var(--foreground)]">
           <Sparkles className="size-4" />
-          <h2 className="font-semibold">Nhìn lại tuần này</h2>
+          <h2 className="font-semibold">Tổng kết tuần</h2>
         </div>
         <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-          Chỗ này chỉ để nhìn lại pattern thật. Nó không nên cướp spotlight của việc giữ nhịp hôm nay.
+          Nhìn lại tuần vừa rồi để xem nhịp nào đang ổn, nhịp nào nên chỉnh nhẹ.
         </p>
         <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/70 p-4">
           {data.weeklyInsight ? (
             <pre className="whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">{data.weeklyInsight.content}</pre>
           ) : (
             <div className="space-y-2 text-sm leading-7 text-[var(--muted)]">
-              <p>Tuần này chưa có insight lưu sẵn.</p>
+              <p>Tuần này chưa có bản tổng kết sẵn.</p>
               <p>
-                {data.viewer.name}: study {data.weeklyStats.viewer.studyPassDays}/7, screen giữ được {data.weeklyStats.viewer.screenWins}/7,
-                body đạt {data.weeklyStats.viewer.bodyPassDays}/{data.weeklyStats.viewer.bodyScheduledDays}.
+                {data.viewer.name} giữ được mục học {data.weeklyStats.viewer.studyPassDays}/7 ngày, mục điện thoại{" "}
+                {data.weeklyStats.viewer.screenWins}/7 ngày, và Body {data.weeklyStats.viewer.bodyPassDays}/
+                {data.weeklyStats.viewer.bodyScheduledDays} ngày theo lịch.
               </p>
               {data.partner ? (
                 <p>
-                  {data.partner.name}: study {data.weeklyStats.partner?.studyPassDays ?? 0}/7, screen giữ được {data.weeklyStats.partner?.screenWins ?? 0}/7,
-                  body đạt {data.weeklyStats.partner?.bodyPassDays ?? 0}/{data.weeklyStats.partner?.bodyScheduledDays ?? 0}.
+                  {data.partner.name} giữ được mục học {data.weeklyStats.partner?.studyPassDays ?? 0}/7 ngày, mục điện thoại{" "}
+                  {data.weeklyStats.partner?.screenWins ?? 0}/7 ngày, và Body {data.weeklyStats.partner?.bodyPassDays ?? 0}/
+                  {data.weeklyStats.partner?.bodyScheduledDays ?? 0} ngày theo lịch.
                 </p>
               ) : null}
             </div>
@@ -714,7 +716,7 @@ function ReviewTab({ data }: { data: DashboardData }) {
             type="submit"
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
           >
-            Làm mới phần nhìn lại
+            Làm mới tổng kết
           </button>
         </form>
       </section>
@@ -736,7 +738,7 @@ function ReviewTab({ data }: { data: DashboardData }) {
               </div>
               <HistoryBadge label={data.viewer.name} status={day.viewerStatus} />
               <HistoryBadge label={data.partner?.name ?? "Chưa đủ pair"} status={day.partnerStatus} />
-              <HistoryBadge label="Shared" status={day.sharedStatus} shared />
+              <HistoryBadge label="Chung" status={day.sharedStatus} shared />
             </div>
           ))}
         </div>
@@ -905,7 +907,7 @@ function StagePill({
 function WaitingPartnerCard() {
   return (
     <div className="rounded-[1.5rem] border border-dashed border-black/12 bg-white/60 p-4 text-sm leading-7 text-[var(--muted)]">
-      Người còn lại chưa vào app hoặc chưa setup xong. Khi đủ 2 người, chỗ này sẽ thành lane để nhìn đúng họ đang ở đâu trong ngày.
+      Người kia chưa vào app hoặc chưa xong phần thiết lập. Khi đủ 2 người, tiến độ hôm nay sẽ hiện ở đây.
     </div>
   );
 }
@@ -923,10 +925,10 @@ function HistoryBadge({ label, status, shared = false }: { label: string; status
 
 function stageLabel(stage: GoalStage | DayLane["dayStage"]) {
   if (stage === "shared_pass") return "Qua ngày";
-  if (stage === "protected_by_grace") return "Grace giữ";
+  if (stage === "protected_by_grace") return "Được grace giữ nhịp";
   if (stage === "submitted_waiting_partner") return "Đã khóa";
-  if (stage === "ready_to_submit") return "Sẵn khóa";
-  if (stage === "missed") return "Hụt";
+  if (stage === "ready_to_submit") return "Đủ để khóa";
+  if (stage === "missed") return "Lỡ nhịp";
   if (stage === "waiting") return "Đang chờ";
   if (stage === "drafting") return "Đang làm";
   return goalStageLabel(stage as GoalStage);
@@ -934,12 +936,12 @@ function stageLabel(stage: GoalStage | DayLane["dayStage"]) {
 
 function goalStageLabel(stage: GoalStage) {
   if (stage === "locked") return "Đã khóa";
-  if (stage === "ready") return "Đủ để chốt";
+  if (stage === "ready") return "Đủ để khóa";
   if (stage === "needs_fix") return "Còn thiếu";
   if (stage === "in_progress") return "Đang làm";
   if (stage === "na") return "N/A";
-  if (stage === "missed") return "Hụt";
-  return "Chưa bắt đầu";
+  if (stage === "missed") return "Lỡ nhịp";
+  return "Chưa làm";
 }
 
 function stageTone(stage: GoalStage | DayLane["dayStage"], muted: boolean) {
@@ -984,17 +986,17 @@ function stageTone(stage: GoalStage | DayLane["dayStage"], muted: boolean) {
 
 function todayStageLabel(stage: TodayStage) {
   if (stage === "shared_pass") return "Hai người đã qua ngày";
-  if (stage === "protected_by_grace") return "Grace đang giữ";
+  if (stage === "protected_by_grace") return "Được grace giữ nhịp";
   if (stage === "submitted_waiting_partner") return "Bạn đang đợi";
   if (stage === "ready_to_submit") return "Đủ để khóa";
-  if (stage === "missed") return "Hôm nay hụt";
+  if (stage === "missed") return "Lỡ nhịp";
   return "Ngày vẫn đang mở";
 }
 
 function historyStatusLabel(status: string) {
   if (status === "pass") return "Qua ngày";
-  if (status === "fail") return "Hụt";
-  if (status === "protected") return "Grace giữ";
+  if (status === "fail") return "Lỡ nhịp";
+  if (status === "protected") return "Được grace giữ nhịp";
   if (status === "waiting") return "Đang chờ";
   if (status === "missing" || status === "idle") return "Chưa có";
   return "Bản nháp";
@@ -1002,7 +1004,7 @@ function historyStatusLabel(status: string) {
 
 function goalTabLabel(goal: GoalCategory) {
   if (goal === "study") return "Học";
-  if (goal === "screen_time") return "Màn hình";
+  if (goal === "screen_time") return "Điện thoại";
   return "Body";
 }
 
@@ -1013,8 +1015,8 @@ function formatCategoryList(categories: GoalCategory[]) {
 
   const labels = categories.map((category) => {
     if (category === "study") return "học";
-    if (category === "screen_time") return "màn hình";
-    return "body";
+    if (category === "screen_time") return "điện thoại";
+    return "Body";
   });
 
   if (labels.length === 1) {

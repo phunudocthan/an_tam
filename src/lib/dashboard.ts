@@ -335,7 +335,7 @@ export function evaluateDay(
 export function getGoalLabel(goal: GoalConfigRow | null, category: GoalCategory) {
   if (!goal) {
     if (category === "study") return "Học đều";
-    if (category === "screen_time") return "Giữ màn hình thấp";
+    if (category === "screen_time") return "Giữ điện thoại trong giới hạn";
     return DEFAULT_GOAL_PRESET.bodyLabel;
   }
 
@@ -375,7 +375,7 @@ export function getTargetText(goal: GoalConfigRow | null, category: GoalCategory
 export function getFocusLabel(mode: BodyFocus | null) {
   if (mode === "gain") return "Tăng cân";
   if (mode === "cut") return "Giảm cân";
-  return "Body goal";
+  return "Mục tiêu Body";
 }
 
 export function getBodyRuleLabel(goal: GoalConfigRow | null) {
@@ -827,8 +827,8 @@ function buildTodaySummary({
     return {
       eyebrow: "Chờ đủ hai người",
       title: "Bạn đã vào trước.",
-      copy: "Phần của bạn đã có nhịp riêng rồi. Khi người còn lại vào, Today mới bật đúng cảm giác chờ nhau.",
-      nextStep: "Giữ rule của bạn đủ gọn để ngày nào người còn lại vào là dùng được ngay.",
+      copy: "Phần của bạn đã sẵn rồi. Khi người còn lại vào, màn hôm nay mới đủ nhịp của hai đứa.",
+      nextStep: "Giữ rule của bạn gọn để lúc người kia vào là dùng được ngay.",
     };
   }
 
@@ -836,8 +836,8 @@ function buildTodaySummary({
     return {
       eyebrow: "Qua ngày",
       title: "Hai người đã qua ngày.",
-      copy: `Shared streak đang ở ${sharedStreak} ngày. Proof vẫn còn ở đây tới trưa mai nếu hai người muốn nhìn lại nỗ lực của nhau.`,
-      nextStep: "Nếu còn muốn xem proof thì xem bây giờ, rồi để ngày mới tự mở ra.",
+      copy: `Nhịp chung đang ở ${sharedStreak} ngày. Ảnh hôm nay vẫn còn tới trưa mai nếu hai đứa muốn nhìn lại.`,
+      nextStep: "Nếu còn muốn xem ảnh thì xem bây giờ, rồi để ngày mới tự mở ra.",
     };
   }
 
@@ -846,7 +846,7 @@ function buildTodaySummary({
       eyebrow: "Grace đang giữ nhịp",
       title: "Hôm nay chưa đẹp, nhưng chưa gãy.",
       copy: "Cả hai đã khóa ngày rồi. Có chỗ hụt, nhưng grace đang giữ nhịp hộ thêm một lần.",
-      nextStep: `Ngày mai sửa đúng ${formatMissingCategories(viewerLane.missingCategories)} hoặc phần hụt của ${partner.name}.`,
+      nextStep: `Ngày mai sửa đúng ${formatMissingCategories(viewerLane.missingCategories)} hoặc phần còn hụt của ${partner.name}.`,
     };
   }
 
@@ -855,7 +855,7 @@ function buildTodaySummary({
       eyebrow: "Hôm nay bị hụt",
       title: "Cả hai đã vào đủ, nhưng hôm nay không qua.",
       copy: "Không cần siết thêm áp lực. Chỉ cần nhìn đúng chỗ nào đã làm ngày hôm nay gãy nhịp.",
-      nextStep: `Xem lại ${formatMissingCategories(viewerLane.missingCategories)} và phần hụt còn đang sống trong khay proof.`,
+      nextStep: `Xem lại ${formatMissingCategories(viewerLane.missingCategories)} và phần hụt còn hiện ở khung ảnh.`,
     };
   }
 
@@ -899,7 +899,7 @@ function buildWaitingCopy(lane: DayLane, partnerName: string) {
   }
 
   if (lane.dayStage === "drafting") {
-    return `${partnerName} vẫn còn ${formatMissingCategories(lane.missingCategories)} nên trạng thái chờ này vẫn còn dang dở.`;
+    return `${partnerName} vẫn còn ${formatMissingCategories(lane.missingCategories)}, nên hai đứa chưa vào hẳn trạng thái chờ nhau được.`;
   }
 
   return `${partnerName} đang hoàn tất nốt phần cuối của ngày hôm nay.`;
@@ -975,8 +975,8 @@ function formatMissingCategories(categories: GoalCategory[]) {
 
   const labels = categories.map((category) => {
     if (category === "study") return "học";
-    if (category === "screen_time") return "màn hình";
-    return "body";
+    if (category === "screen_time") return "điện thoại";
+    return "Body";
   });
 
   if (labels.length === 1) {
@@ -992,7 +992,7 @@ function formatMissingCategories(categories: GoalCategory[]) {
 
 function laneStageLabel(stage: DayLane["dayStage"]) {
   if (stage === "shared_pass") return "đã qua ngày";
-  if (stage === "protected_by_grace") return "Grace đang giữ";
+  if (stage === "protected_by_grace") return "được grace giữ nhịp";
   if (stage === "submitted_waiting_partner") return "đã khóa ngày";
   if (stage === "ready_to_submit") return "đủ để khóa";
   if (stage === "missed") return "bị hụt";

@@ -23,6 +23,7 @@ export function ProofUploadField({
   const inputId = useId();
   const [filename, setFilename] = useState("");
   const hasSelection = Boolean(filename);
+  const selectedLabel = filename || "Đã chọn 1 ảnh";
 
   return (
     <div className="space-y-2 rounded-[1.35rem] border border-black/8 bg-white/72 p-3">
@@ -35,7 +36,7 @@ export function ProofUploadField({
 
       <p className="text-xs leading-6 text-[var(--muted)]">
         {hasSelection
-          ? "Ảnh mới đã sẵn. Bấm Lưu để đưa nó lên khay proof của hôm nay."
+          ? "Đã chọn ảnh mới. Nhớ bấm Lưu để cập nhật."
           : description ?? "Ảnh này sẽ chỉ ở lại trong một cửa sổ ngắn để người còn lại kịp thấy."}
       </p>
 
@@ -57,10 +58,10 @@ export function ProofUploadField({
       >
         <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--foreground)] px-3.5 py-2 text-sm font-semibold text-white">
           <ImageUp className="size-4" />
-          {hasSelection ? "Đổi ảnh này" : buttonLabel}
+          {hasSelection ? "Đổi ảnh" : buttonLabel}
         </span>
         <span className="min-w-0 flex-1 truncate text-right text-xs text-[var(--muted)]">
-          {hasSelection ? "Đã chọn 1 ảnh mới" : "Chưa chọn ảnh"}
+          {hasSelection ? selectedLabel : "Chưa chọn ảnh"}
         </span>
       </label>
     </div>
