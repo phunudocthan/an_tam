@@ -1,6 +1,14 @@
 export const APP_NAME = "An Tam";
 export const PROOF_BUCKET = "proofs";
 export const MAX_PROOF_SIZE_BYTES = 5 * 1024 * 1024;
+export const PROOF_INPUT_ACCEPT = "image/png,image/jpeg,image/webp,image/heic,image/heif";
+export const ALLOWED_PROOF_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+] as const;
 export const PAIR_CAPACITY = 2;
 
 export const GOAL_CATEGORIES = ["study", "screen_time", "body"] as const;

@@ -19,3 +19,6 @@ next-env.d.ts
 .env.production.local
 !.env.example
 supabase/.temp
+.codex
+output
+tmp

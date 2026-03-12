@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { clearSession, createSessionForPassword } from "@/lib/auth";
 import { generateWeeklyInsight } from "@/lib/ai";
 import {
+  ALLOWED_PROOF_MIME_TYPES,
   APP_NAME,
   DEFAULT_GOAL_PRESET,
   MAX_PROOF_SIZE_BYTES,
@@ -19,8 +21,11 @@ import {
 } from "@/lib/dashboard";
 import { getPairTimezone } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import type { DailyCheckinRow, GoalConfigMap, GoalConfigRow, PairMemberRow, PairRow } from "@/lib/types";
+
+export type PasswordLoginState = {
+  error: string | null;
+};
 
 const setupSchema = z.object({
   displayName: z.string().trim().min(1).max(40),
@@ -33,10 +38,33 @@ const setupSchema = z.object({
   weeklyPactNote: z.string().trim().max(160).optional().default(""),
 });
 
+export async function loginWithPasswordAction(
+  _previousState: PasswordLoginState,
+  formData: FormData,
+): Promise<PasswordLoginState> {
+  const password = String(formData.get("password") ?? "");
+
+  if (!password.trim()) {
+    return {
+      error: "Nhập mật khẩu trước đã.",
+    };
+  }
+
+  const success = await createSessionForPassword(password);
+
+  if (!success) {
+    return {
+      error: "Sai mật khẩu. App này chỉ dùng 2 mật khẩu cố định, mỗi mật khẩu map vào 1 tài khoản riêng.",
+    };
+  }
+
+  redirect("/");
+}
+
 export async function completeSetupAction(formData: FormData) {
   const user = await requireUser();
 
-  if (!user?.email) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -419,8 +447,7 @@ export async function refreshWeeklyInsightAction() {
 }
 
 export async function logoutAction() {
-  const supabase = await createServerClient();
-  await supabase.auth.signOut();
+  await clearSession();
   redirect("/login");
 }
 
@@ -526,7 +553,11 @@ async function maybeUploadProof({
   }
 
   if (file.size > MAX_PROOF_SIZE_BYTES) {
-    throw new Error("Proof vuot qua 5MB.");
+    throw new Error("Proof vượt quá 5MB.");
+  }
+
+  if (!ALLOWED_PROOF_MIME_TYPES.includes(file.type as (typeof ALLOWED_PROOF_MIME_TYPES)[number])) {
+    throw new Error("Proof chỉ hỗ trợ PNG, JPG, WEBP hoặc HEIC.");
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "jpg";

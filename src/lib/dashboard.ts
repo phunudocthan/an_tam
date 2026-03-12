@@ -1,14 +1,13 @@
-import type { User } from "@supabase/supabase-js";
 import {
   APP_NAME,
   DEFAULT_GOAL_PRESET,
   PAIR_CAPACITY,
   WEEKDAY_OPTIONS,
 } from "@/lib/constants";
+import { getSessionUser, type AuthUser } from "@/lib/auth";
 import { getDateLabel, getTodayKey, getWeekRange, getWeekdayInTimezone, listDateKeysDescending } from "@/lib/date";
-import { getPairEmailAllowlist, getPairTimezone, hasSupabaseEnv } from "@/lib/env";
+import { getPairTimezone, hasSupabaseEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import type {
   AiReviewRow,
   BodyFocus,
@@ -42,26 +41,12 @@ type DailyEvaluation = {
 };
 
 export async function requireUser() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return user;
+  return getSessionUser();
 }
 
-export async function loadAppState(user: User): Promise<AppState> {
+export async function loadAppState(user: AuthUser): Promise<AppState> {
   if (!hasSupabaseEnv()) {
     return { kind: "missing_env" };
-  }
-
-  if (!isAllowedEmail(user.email)) {
-    return {
-      kind: "blocked",
-      email: user.email ?? "",
-      reason:
-        "Email này chưa nằm trong danh sách của cặp đôi. Bạn có thể thêm `PAIR_MEMBER_EMAILS` hoặc để người đầu tiên setup trước.",
-    };
   }
 
   const admin = createAdminClient();
@@ -77,7 +62,7 @@ export async function loadAppState(user: User): Promise<AppState> {
     if (looksLikeMissingSchema(firstError.message)) {
       return {
         kind: "db_not_ready",
-        email: user.email ?? "",
+        email: user.email,
         message:
           "Database schema chưa được apply. Hãy chạy file migration trong thư mục `supabase/migrations` lên đúng Supabase project trước.",
       };
@@ -89,7 +74,7 @@ export async function loadAppState(user: User): Promise<AppState> {
   if (!pair) {
     return {
       kind: "needs_setup",
-      email: user.email ?? "",
+      email: user.email,
       memberCount: 0,
       profile: (profile as ProfileRow | null) ?? null,
     };
@@ -111,7 +96,7 @@ export async function loadAppState(user: User): Promise<AppState> {
   if (!isMember && membershipRows.length >= PAIR_CAPACITY) {
     return {
       kind: "blocked",
-      email: user.email ?? "",
+      email: user.email,
       reason: "Pair này đã đủ 2 người. App được khóa ở đúng một cặp đôi cho MVP.",
     };
   }
@@ -122,7 +107,7 @@ export async function loadAppState(user: User): Promise<AppState> {
   if (!isMember || !setupCompleted || userGoalCount < 3) {
     return {
       kind: "needs_setup",
-      email: user.email ?? "",
+      email: user.email,
       memberCount: membershipRows.length,
       profile: (profile as ProfileRow | null) ?? null,
     };
@@ -183,8 +168,8 @@ export async function loadAppState(user: User): Promise<AppState> {
 
   const viewer: PersonSummary = {
     userId: user.id,
-    email: viewerProfile?.email ?? user.email ?? "",
-    name: viewerProfile?.display_name || "Bạn",
+    email: viewerProfile?.email ?? user.email,
+    name: viewerProfile?.display_name || user.fallbackName,
     focusMode: viewerProfile?.focus_mode ?? null,
     goals: viewerGoals,
     today: viewerToday,
@@ -561,20 +546,6 @@ function buildDailyRecap({
 
 function looksLikeMissingSchema(message: string) {
   return message.includes("does not exist") || message.includes("relation") || message.includes("schema cache");
-}
-
-function isAllowedEmail(email: string | undefined) {
-  if (!email) {
-    return false;
-  }
-
-  const allowlist = getPairEmailAllowlist();
-
-  if (allowlist.length === 0) {
-    return true;
-  }
-
-  return allowlist.includes(email.toLowerCase());
 }
 
 export function getFocusLabel(mode: BodyFocus | null) {

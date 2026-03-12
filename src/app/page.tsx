@@ -20,7 +20,7 @@ import {
   saveWeeklyPactAction,
   submitDayAction,
 } from "@/app/actions";
-import { WEEKLY_PACTS } from "@/lib/constants";
+import { PROOF_INPUT_ACCEPT, WEEKLY_PACTS } from "@/lib/constants";
 import {
   getBodyRuleLabel,
   getBodyScheduledDays,
@@ -124,19 +124,19 @@ export default async function HomePage() {
           </div>
         </header>
 
-        <section className="mb-6 grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <section className="mb-6 grid gap-4 xl:grid-cols-[1.38fr_0.62fr]">
           <div className="glass-card rounded-[2rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3">
               <div>
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--muted)]">Today board</p>
                 <h2 className="display-type mt-2 text-3xl font-semibold">Ngày hôm nay đang ở đâu?</h2>
               </div>
-              <div className="rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-3 text-sm text-[var(--muted)]">
+              <div className="max-w-3xl rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
                 {data.dailyRecap}
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
               <CheckinCard
                 category="study"
                 title="Study"
@@ -147,7 +147,7 @@ export default async function HomePage() {
                 status={data.viewer.today?.study_status ?? "pending"}
                 partnerStatus={data.partner?.today?.study_status ?? "pending"}
               >
-                <form action={saveCheckinAction} encType="multipart/form-data" className="space-y-3">
+                <form action={saveCheckinAction} className="space-y-3">
                   <input type="hidden" name="category" value="study" />
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Số phút học</span>
@@ -161,7 +161,12 @@ export default async function HomePage() {
                   </label>
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Proof học</span>
-                    <input type="file" name="studyProof" accept="image/*" className="block w-full text-sm text-[var(--muted)]" />
+                    <input
+                      type="file"
+                      name="studyProof"
+                      accept={PROOF_INPUT_ACCEPT}
+                      className="block w-full text-sm text-[var(--muted)]"
+                    />
                   </label>
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Note</span>
@@ -172,7 +177,7 @@ export default async function HomePage() {
                       className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     />
                   </label>
-                  <SaveButton label="Lưu study" />
+                  <SaveButton label="Lưu study" fullWidth />
                 </form>
               </CheckinCard>
 
@@ -186,7 +191,7 @@ export default async function HomePage() {
                 status={data.viewer.today?.screen_time_status ?? "pending"}
                 partnerStatus={data.partner?.today?.screen_time_status ?? "pending"}
               >
-                <form action={saveCheckinAction} encType="multipart/form-data" className="space-y-3">
+                <form action={saveCheckinAction} className="space-y-3">
                   <input type="hidden" name="category" value="screen_time" />
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Screen time hôm nay (phút)</span>
@@ -203,7 +208,7 @@ export default async function HomePage() {
                     <input
                       type="file"
                       name="screenTimeProof"
-                      accept="image/*"
+                      accept={PROOF_INPUT_ACCEPT}
                       className="block w-full text-sm text-[var(--muted)]"
                     />
                   </label>
@@ -216,55 +221,67 @@ export default async function HomePage() {
                       className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     />
                   </label>
-                  <SaveButton label="Lưu screen time" />
+                  <SaveButton label="Lưu screen time" fullWidth />
                 </form>
               </CheckinCard>
 
-              <CheckinCard
-                category="body"
-                title="Body"
-                icon={Dumbbell}
-                accent="var(--rose)"
-                target={getTargetText(data.viewer.goals.body, "body")}
-                label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
-                status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
-                partnerStatus={
-                  data.partner
-                    ? getBodyScheduledDays(data.partner.goals.body).includes(
-                        getWeekdayInTimezone(data.todayKey, data.pair.timezone),
-                      )
-                      ? data.partner.today?.body_status ?? "pending"
-                      : "na"
-                    : "pending"
-                }
-              >
-                <form action={saveCheckinAction} encType="multipart/form-data" className="space-y-3">
-                  <input type="hidden" name="category" value="body" />
-                  <label className="inline-flex items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
-                    <input type="checkbox" name="bodyCompleted" defaultChecked={data.viewer.today?.body_completed ?? false} />
-                    Hôm nay tôi đã bám đúng plan body của mình
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Proof body</span>
-                    <input type="file" name="bodyProof" accept="image/*" className="block w-full text-sm text-[var(--muted)]" />
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Note</span>
-                    <textarea
-                      name="bodyNote"
-                      rows={3}
-                      defaultValue={data.viewer.today?.body_note ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <p className="text-xs leading-6 text-[var(--muted)]">
-                    {bodyScheduledToday
-                      ? "Body được tính hôm nay. Proof là bắt buộc để mục này pass."
-                      : "Hôm nay không nằm trong lịch body của bạn, nên card này đang ở trạng thái N/A."}
-                  </p>
-                  <SaveButton label="Lưu body" />
-                </form>
-              </CheckinCard>
+              <div className="xl:col-span-2">
+                <CheckinCard
+                  category="body"
+                  title="Body"
+                  icon={Dumbbell}
+                  accent="var(--rose)"
+                  target={getTargetText(data.viewer.goals.body, "body")}
+                  label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
+                  status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
+                  partnerStatus={
+                    data.partner
+                      ? getBodyScheduledDays(data.partner.goals.body).includes(
+                          getWeekdayInTimezone(data.todayKey, data.pair.timezone),
+                        )
+                        ? data.partner.today?.body_status ?? "pending"
+                        : "na"
+                      : "pending"
+                  }
+                >
+                  <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <input type="hidden" name="category" value="body" />
+                    <div className="space-y-3">
+                      <label className="inline-flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
+                        <input type="checkbox" name="bodyCompleted" defaultChecked={data.viewer.today?.body_completed ?? false} />
+                        Hôm nay tôi đã bám đúng plan body của mình
+                      </label>
+                      <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
+                        {bodyScheduledToday
+                          ? "Body được tính hôm nay. Proof là bắt buộc để mục này pass."
+                          : "Hôm nay không nằm trong lịch body của bạn, nên card này đang ở trạng thái N/A."}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block space-y-2 text-sm text-[var(--muted)]">
+                        <span>Proof body</span>
+                        <input
+                          type="file"
+                          name="bodyProof"
+                          accept={PROOF_INPUT_ACCEPT}
+                          className="block w-full text-sm text-[var(--muted)]"
+                        />
+                      </label>
+                      <label className="block space-y-2 text-sm text-[var(--muted)]">
+                        <span>Note</span>
+                        <textarea
+                          name="bodyNote"
+                          rows={3}
+                          defaultValue={data.viewer.today?.body_note ?? ""}
+                          className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                        />
+                      </label>
+                      <SaveButton label="Lưu body" fullWidth />
+                    </div>
+                  </form>
+                </CheckinCard>
+              </div>
             </div>
 
             <form action={submitDayAction} className="mt-5">
@@ -433,7 +450,7 @@ function CheckinCard({
 }) {
   return (
     <section className="rounded-[1.75rem] border border-black/8 bg-white/65 p-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
             <Icon className="size-4" />
@@ -454,14 +471,14 @@ function CheckinCard({
   );
 }
 
-function SaveButton({ label, subtle = false }: { label: string; subtle?: boolean }) {
+function SaveButton({ label, subtle = false, fullWidth = false }: { label: string; subtle?: boolean; fullWidth?: boolean }) {
   return (
     <button
       type="submit"
       className={
         subtle
-          ? "rounded-full border border-black/10 bg-white/85 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
-          : "rounded-full bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          ? `${fullWidth ? "w-full justify-center" : ""} rounded-full border border-black/10 bg-white/85 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white`
+          : `${fullWidth ? "w-full justify-center" : ""} inline-flex items-center rounded-full bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90`
       }
     >
       {label}

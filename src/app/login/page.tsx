@@ -1,47 +1,94 @@
-import { HeartHandshake, Sparkles } from "lucide-react";
+import { HeartHandshake, KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { LoginForm } from "@/app/login/login-form";
 
-export default function LoginPage() {
+const principles = [
+  "Login phải nhanh hơn việc đoán xem email nào mới nhất.",
+  "Không để UX auth phá vỡ daily loop của 2 người.",
+  "Với app private cho 2 người, pass cố định hợp lý hơn magic link.",
+];
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ legacy_message?: string }>;
+}) {
+  const params = await searchParams;
+  const legacyMessage = typeof params.legacy_message === "string" ? params.legacy_message : null;
+
   return (
-    <main className="page-shell flex min-h-screen items-center justify-center px-5 py-10">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.2fr_0.9fr]">
-        <section className="glass-card rounded-[2.5rem] px-6 py-8 sm:px-8 sm:py-10">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-sm text-[var(--muted)]">
-            <HeartHandshake className="size-4" />
-            Private couple accountability app
+    <main className="page-shell px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="glass-card flex flex-col justify-between rounded-[2.5rem] p-6 sm:p-8">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-[var(--muted)]">
+              <HeartHandshake className="size-4" />
+              Private couple accountability app
+            </div>
+
+            <h1 className="display-type mt-6 max-w-3xl text-4xl font-semibold leading-tight text-[var(--foreground)] sm:text-6xl">
+              Login này phải đơn giản như việc mở cửa nhà.
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--muted)] sm:text-lg">
+              Tôi đã bỏ flow magic link. Với một app chỉ có 2 người dùng thật, việc bật mở email, gặp 429, rồi mất link cũ là
+              tra tấn UX không cần thiết. Từ giờ mỗi người có 1 pass cố định, nhập đúng là vào.
+            </p>
           </div>
-          <h1 className="display-type max-w-2xl text-4xl leading-tight font-semibold text-[var(--foreground)] sm:text-6xl">
-            Khác mục tiêu, nhưng vẫn giữ cùng một nhịp.
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-            An Tam không cố biến hai người thành cùng một kiểu kỷ luật. Mỗi người có target riêng, nhưng ngày chỉ thật sự
-            trọn khi cả hai đều có mặt và chịu trách nhiệm với phần của mình.
-          </p>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {[
-              ["Study", "Học đều và có proof ngắn hạn khi cần thi cử."],
-              ["Screen time", "Ít màn hình hơn nhưng không làm app thành máy phán xét."],
-              ["Body", "Bulk hay cut đều được, miễn là vẫn đi cùng một nhịp."],
-            ].map(([title, copy]) => (
-              <div key={title} className="rounded-[1.75rem] border border-black/8 bg-white/60 p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{copy}</p>
-              </div>
-            ))}
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <InfoCard
+              icon={KeyRound}
+              title="2 pass, 2 người"
+              copy="Mỗi pass map thẳng vào một tài khoản riêng. Không cần username."
+            />
+            <InfoCard
+              icon={Lock}
+              title="Không 429"
+              copy="Không còn resend, không còn chờ mail, không còn bị ratelimit của Supabase auth."
+            />
+            <InfoCard
+              icon={ShieldCheck}
+              title="Đúng tinh thần MVP"
+              copy="Private, nhanh, ít ma sát. Dùng thử cho 2 người dùng hằng ngày."
+            />
           </div>
         </section>
 
-        <section className="flex flex-col justify-between gap-5">
-          <LoginForm />
-          <div className="glass-card rounded-[2rem] p-5 text-sm leading-6 text-[var(--muted)]">
-            <div className="mb-3 flex items-center gap-2 text-[var(--foreground)]">
-              <Sparkles className="size-4" />
-              <span className="font-semibold">Loop chính của MVP</span>
+        <section className="flex flex-col gap-4">
+          <LoginForm legacyMessage={legacyMessage} />
+
+          <div className="glass-card rounded-[2rem] p-5">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Nguyên tắc login</p>
+            <div className="mt-4 space-y-3 text-sm leading-7 text-[var(--muted)]">
+              {principles.map((principle) => (
+                <div key={principle} className="rounded-[1.25rem] border border-black/8 bg-white/70 px-4 py-3">
+                  {principle}
+                </div>
+              ))}
             </div>
-            <p>Mỗi ngày đi qua ba việc: cập nhật từng mục, submit ngày, rồi chờ nhau. Shared streak chỉ tăng khi cả hai đều qua ngày.</p>
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function InfoCard({
+  icon: Icon,
+  title,
+  copy,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  copy: string;
+}) {
+  return (
+    <div className="rounded-[1.75rem] border border-black/8 bg-white/65 p-4">
+      <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/85 px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+        <Icon className="size-4" />
+        {title}
+      </div>
+      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{copy}</p>
+    </div>
   );
 }

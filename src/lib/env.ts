@@ -1,18 +1,16 @@
 const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const publicSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export function hasSupabaseEnv() {
-  return Boolean(publicSupabaseUrl && publicSupabaseKey);
+  return Boolean(publicSupabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function getSupabaseEnv() {
-  if (!publicSupabaseUrl || !publicSupabaseKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.");
+  if (!publicSupabaseUrl) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL.");
   }
 
   return {
     url: publicSupabaseUrl,
-    publishableKey: publicSupabaseKey,
   };
 }
 
@@ -43,17 +41,42 @@ export function getPairTimezone() {
   return process.env.PAIR_TIMEZONE ?? "Asia/Ho_Chi_Minh";
 }
 
-export function getPairEmailAllowlist() {
-  const raw = process.env.PAIR_MEMBER_EMAILS;
+export function getSessionSecret() {
+  const secret = process.env.APP_SESSION_SECRET;
 
-  if (!raw) {
-    return [];
+  if (!secret) {
+    throw new Error("Missing APP_SESSION_SECRET.");
   }
 
-  return raw
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+  return secret;
+}
+
+export function getPasswordMembers() {
+  const memberOnePassword = process.env.PAIR_MEMBER_ONE_PASSWORD;
+  const memberTwoPassword = process.env.PAIR_MEMBER_TWO_PASSWORD;
+
+  if (!memberOnePassword || !memberTwoPassword) {
+    throw new Error("Missing PAIR_MEMBER_ONE_PASSWORD or PAIR_MEMBER_TWO_PASSWORD.");
+  }
+
+  if (memberOnePassword === memberTwoPassword) {
+    throw new Error("PAIR_MEMBER_ONE_PASSWORD and PAIR_MEMBER_TWO_PASSWORD must be different.");
+  }
+
+  return [
+    {
+      memberKey: "member_one" as const,
+      password: memberOnePassword,
+      placeholderEmail: "member.one@an-tam.local",
+      fallbackName: "Nguoi 1",
+    },
+    {
+      memberKey: "member_two" as const,
+      password: memberTwoPassword,
+      placeholderEmail: "member.two@an-tam.local",
+      fallbackName: "Nguoi 2",
+    },
+  ];
 }
 
 export function getCronSecret() {
