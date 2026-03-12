@@ -20,6 +20,16 @@ export function LoginForm({ legacyMessage }: { legacyMessage: string | null }) {
       </div>
 
       <form action={formAction} className="space-y-4">
+        <input
+          readOnly
+          aria-hidden="true"
+          tabIndex={-1}
+          name="username"
+          autoComplete="username"
+          defaultValue="an-tam"
+          className="sr-only"
+        />
+
         <label className="block space-y-2 text-sm text-[var(--muted)]">
           <span>Mật khẩu</span>
           <input
