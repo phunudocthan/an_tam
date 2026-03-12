@@ -403,7 +403,7 @@ export async function refreshWeeklyInsightAction() {
       title: "Weekly insight",
       content: insight,
       metadata: {
-        model: process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite",
+        model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite",
       },
     },
     {
