@@ -39,6 +39,7 @@ import type { DailyCheckinRow, DashboardData, GoalCategory, PersonSummary } from
 export const dynamic = "force-dynamic";
 
 type DashboardTab = "today" | "pair" | "review";
+type GoalTab = GoalCategory;
 
 const DASHBOARD_TABS = [
   { key: "today" as const, label: "Hôm nay", icon: CheckCircle2 },
@@ -50,10 +51,21 @@ const DASHBOARD_TABS = [
   icon: React.ComponentType<{ className?: string }>;
 }>;
 
+const GOAL_TABS = [
+  { key: "study" as const, label: "Study", icon: MoonStar, accent: "var(--gold)" },
+  { key: "screen_time" as const, label: "Screen time", icon: Smartphone, accent: "var(--accent)" },
+  { key: "body" as const, label: "Body", icon: Dumbbell, accent: "var(--rose)" },
+] satisfies Array<{
+  key: GoalTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string;
+}>;
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; goal?: string }>;
 }) {
   if (!hasSupabaseEnv()) {
     return <ConfigState />;
@@ -98,6 +110,7 @@ export default async function HomePage({
 
   const { data } = state;
   const activeTab = normalizeDashboardTab(params.tab);
+  const activeGoal = normalizeGoalTab(params.goal);
   const bodyScheduledToday = getBodyScheduledDays(data.viewer.goals.body).includes(
     getWeekdayInTimezone(data.todayKey, data.pair.timezone),
   );
@@ -155,7 +168,7 @@ export default async function HomePage({
                 return (
                   <Link
                     key={tab.key}
-                    href={dashboardTabHref(tab.key)}
+                    href={dashboardTabHref(tab.key, activeGoal)}
                     scroll={false}
                     className={`inline-flex min-w-[8.75rem] flex-1 items-center justify-center gap-2 rounded-[1.15rem] px-4 py-3 text-sm font-medium whitespace-nowrap transition ${
                       isActive
@@ -172,7 +185,7 @@ export default async function HomePage({
           </div>
         </section>
 
-        {activeTab === "today" ? <TodayTab data={data} bodyScheduledToday={bodyScheduledToday} /> : null}
+        {activeTab === "today" ? <TodayTab data={data} bodyScheduledToday={bodyScheduledToday} activeGoal={activeGoal} /> : null}
         {activeTab === "pair" ? <PairTab data={data} /> : null}
         {activeTab === "review" ? <ReviewTab data={data} /> : null}
       </div>
@@ -183,15 +196,47 @@ export default async function HomePage({
 function TodayTab({
   data,
   bodyScheduledToday,
+  activeGoal,
 }: {
   data: DashboardData;
   bodyScheduledToday: boolean;
+  activeGoal: GoalTab;
 }) {
   const viewerName = data.viewer.name;
   const partnerName = data.partner?.name ?? null;
   const partnerBodyScheduledToday =
     data.partner &&
     getBodyScheduledDays(data.partner.goals.body).includes(getWeekdayInTimezone(data.todayKey, data.pair.timezone));
+
+  const goalCards = GOAL_TABS.map((goal) => {
+    const target =
+      goal.key === "body"
+        ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
+        : getTargetText(data.viewer.goals[goal.key], goal.key);
+
+    const headline = getGoalLabel(data.viewer.goals[goal.key], goal.key);
+    const scheduledToday = goal.key === "body" ? bodyScheduledToday : true;
+    const partnerScheduledToday = goal.key === "body" ? Boolean(partnerBodyScheduledToday) : true;
+
+    return {
+      ...goal,
+      headline,
+      target,
+      viewerStatus: getGoalDisplayStatus({
+        row: data.viewer.today,
+        category: goal.key,
+        scheduledToday,
+      }),
+      partnerStatus: getGoalDisplayStatus({
+        row: data.partner?.today ?? null,
+        category: goal.key,
+        scheduledToday: data.partner ? partnerScheduledToday : false,
+        partnerMissing: !data.partner,
+      }),
+    };
+  });
+
+  const activeGoalCard = goalCards.find((goal) => goal.key === activeGoal) ?? goalCards[0];
 
   return (
     <section className="grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
@@ -206,112 +251,108 @@ function TodayTab({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+        <div className="mt-6 grid grid-cols-3 gap-2">
+          {goalCards.map((goal) => (
+            <GoalTabCard
+              key={goal.key}
+              href={goalTabHref(goal.key)}
+              title={goal.label}
+              icon={goal.icon}
+              active={goal.key === activeGoal}
+            />
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-[1.5rem] border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm leading-7 text-emerald-900">
+          Lưu từng mục chỉ tạo bản nháp cá nhân hoặc báo rằng mục đó đã đủ điều kiện để khóa ngày. Chỉ sau khi bấm
+          <span className="font-semibold"> Khóa ngày hôm nay</span>, app mới chốt kết quả; shared streak chỉ tăng khi
+          cả hai cùng khóa và cùng đạt chuẩn riêng của mình.
+        </div>
+
+        <div className="mt-5">
           <CheckinCard
-            category="study"
-            title="Study"
-            icon={MoonStar}
-            accent="var(--gold)"
-            target={getTargetText(data.viewer.goals.study, "study")}
-            label={getGoalLabel(data.viewer.goals.study, "study")}
-            status={data.viewer.today?.study_status ?? "pending"}
-            partnerStatus={data.partner?.today?.study_status ?? "pending"}
+            category={activeGoalCard.key}
+            title={activeGoalCard.label}
+            icon={activeGoalCard.icon}
+            accent={activeGoalCard.accent}
+            target={activeGoalCard.target}
+            label={activeGoalCard.headline}
+            status={activeGoalCard.viewerStatus}
+            partnerStatus={activeGoalCard.partnerStatus}
             viewerLabel={viewerName}
             partnerLabel={partnerName}
           >
-            <form action={saveCheckinAction} className="flex h-full flex-col gap-3">
-              <input type="hidden" name="category" value="study" />
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Số phút học</span>
-                <input
-                  type="number"
-                  min={0}
-                  name="studyMinutes"
-                  defaultValue={data.viewer.today?.study_minutes ?? ""}
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            {activeGoal === "study" ? (
+              <form action={saveCheckinAction} className="flex flex-col gap-4">
+                <input type="hidden" name="category" value="study" />
+                <label className="block space-y-2 text-sm text-[var(--muted)]">
+                  <span>Số phút học</span>
+                  <input
+                    type="number"
+                    min={0}
+                    name="studyMinutes"
+                    defaultValue={data.viewer.today?.study_minutes ?? ""}
+                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+                <ProofUploadField
+                  name="studyProof"
+                  label="Ảnh bằng chứng"
+                  buttonLabel="Chọn ảnh bằng chứng"
+                  accept={PROOF_INPUT_ACCEPT}
+                  helper={data.viewer.today?.study_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
                 />
-              </label>
-              <ProofUploadField
-                name="studyProof"
-                label="Ảnh bằng chứng"
-                buttonLabel="Chọn ảnh bằng chứng"
-                accept={PROOF_INPUT_ACCEPT}
-                helper={data.viewer.today?.study_had_proof ? "Đã có proof hôm nay" : "Tự xóa khi sang ngày mới"}
-              />
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Note</span>
-                <textarea
-                  name="studyNote"
-                  rows={3}
-                  defaultValue={data.viewer.today?.study_note ?? ""}
-                  className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                />
-              </label>
-              <div className="mt-auto pt-1">
-                <SaveButton label="Lưu study" fullWidth />
-              </div>
-            </form>
-          </CheckinCard>
+                <label className="block space-y-2 text-sm text-[var(--muted)]">
+                  <span>Note</span>
+                  <textarea
+                    name="studyNote"
+                    rows={3}
+                    defaultValue={data.viewer.today?.study_note ?? ""}
+                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+                <div className="pt-1">
+                  <SaveButton label="Lưu study" fullWidth />
+                </div>
+              </form>
+            ) : null}
 
-          <CheckinCard
-            category="screen_time"
-            title="Screen time"
-            icon={Smartphone}
-            accent="var(--accent)"
-            target={getTargetText(data.viewer.goals.screen_time, "screen_time")}
-            label={getGoalLabel(data.viewer.goals.screen_time, "screen_time")}
-            status={data.viewer.today?.screen_time_status ?? "pending"}
-            partnerStatus={data.partner?.today?.screen_time_status ?? "pending"}
-            viewerLabel={viewerName}
-            partnerLabel={partnerName}
-          >
-            <form action={saveCheckinAction} className="flex h-full flex-col gap-3">
-              <input type="hidden" name="category" value="screen_time" />
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Screen time hôm nay (phút)</span>
-                <input
-                  type="number"
-                  min={0}
-                  name="screenTimeMinutes"
-                  defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            {activeGoal === "screen_time" ? (
+              <form action={saveCheckinAction} className="flex flex-col gap-4">
+                <input type="hidden" name="category" value="screen_time" />
+                <label className="block space-y-2 text-sm text-[var(--muted)]">
+                  <span>Screen time hôm nay (phút)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    name="screenTimeMinutes"
+                    defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
+                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+                <ProofUploadField
+                  name="screenTimeProof"
+                  label="Screenshot"
+                  buttonLabel="Tải screenshot"
+                  accept={PROOF_INPUT_ACCEPT}
+                  helper={data.viewer.today?.screen_time_had_proof ? "Đã có screenshot hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Không bắt buộc"}
                 />
-              </label>
-              <ProofUploadField
-                name="screenTimeProof"
-                label="Screenshot"
-                buttonLabel="Tải screenshot"
-                accept={PROOF_INPUT_ACCEPT}
-                helper={data.viewer.today?.screen_time_had_proof ? "Đã có screenshot hôm nay" : "Không bắt buộc"}
-              />
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Note</span>
-                <textarea
-                  name="screenTimeNote"
-                  rows={3}
-                  defaultValue={data.viewer.today?.screen_time_note ?? ""}
-                  className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                />
-              </label>
-              <div className="mt-auto pt-1">
-                <SaveButton label="Lưu screen time" fullWidth />
-              </div>
-            </form>
-          </CheckinCard>
+                <label className="block space-y-2 text-sm text-[var(--muted)]">
+                  <span>Note</span>
+                  <textarea
+                    name="screenTimeNote"
+                    rows={3}
+                    defaultValue={data.viewer.today?.screen_time_note ?? ""}
+                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                </label>
+                <div className="pt-1">
+                  <SaveButton label="Lưu screen time" fullWidth />
+                </div>
+              </form>
+            ) : null}
 
-          <div className="xl:col-span-2">
-            <CheckinCard
-              category="body"
-              title="Body"
-              icon={Dumbbell}
-              accent="var(--rose)"
-              target={`${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`}
-              label={getGoalLabel(data.viewer.goals.body, "body")}
-              status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
-              partnerStatus={partnerBodyScheduledToday ? data.partner?.today?.body_status ?? "pending" : data.partner ? "na" : "pending"}
-              viewerLabel={viewerName}
-              partnerLabel={partnerName}
-            >
+            {activeGoal === "body" ? (
               <form action={saveCheckinAction} className="flex flex-col gap-4">
                 <input type="hidden" name="category" value="body" />
                 <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-4 text-[var(--foreground)]">
@@ -328,37 +369,33 @@ function TodayTab({
                     </span>
                   </span>
                 </label>
-
                 <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
                   {bodyScheduledToday
-                    ? "Hôm nay body được tính. Cần ảnh bằng chứng để mục này pass."
+                    ? "Hôm nay body được tính. Cần ảnh bằng chứng để mục này đủ điều kiện khóa ngày."
                     : "Hôm nay không nằm trong lịch body của bạn, nên mục này đang ở trạng thái N/A."}
                 </p>
-
-                <div className="flex flex-col gap-3">
-                  <ProofUploadField
-                    name="bodyProof"
-                    label="Ảnh bằng chứng"
-                    buttonLabel="Chọn ảnh bằng chứng"
-                    accept={PROOF_INPUT_ACCEPT}
-                    helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
+                <ProofUploadField
+                  name="bodyProof"
+                  label="Ảnh bằng chứng"
+                  buttonLabel="Chọn ảnh bằng chứng"
+                  accept={PROOF_INPUT_ACCEPT}
+                  helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
+                />
+                <label className="block space-y-2 text-sm text-[var(--muted)]">
+                  <span>Note</span>
+                  <textarea
+                    name="bodyNote"
+                    rows={3}
+                    defaultValue={data.viewer.today?.body_note ?? ""}
+                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                   />
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Note</span>
-                    <textarea
-                      name="bodyNote"
-                      rows={3}
-                      defaultValue={data.viewer.today?.body_note ?? ""}
-                      className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <div className="pt-1">
-                    <SaveButton label="Lưu body" fullWidth />
-                  </div>
+                </label>
+                <div className="pt-1">
+                  <SaveButton label="Lưu body" fullWidth />
                 </div>
               </form>
-            </CheckinCard>
-          </div>
+            ) : null}
+          </CheckinCard>
         </div>
       </div>
 
@@ -366,8 +403,8 @@ function TodayTab({
         <div className="glass-card rounded-[2rem] p-5">
           <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Chờ nhau</p>
           <div className="mt-4 grid gap-3">
-            <PersonCard person={data.viewer} row={data.viewer.today} current />
-            {data.partner ? <PersonCard person={data.partner} row={data.partner.today} /> : <WaitingPartnerCard />}
+            <PersonCard person={data.viewer} row={data.viewer.today} todayKey={data.todayKey} timezone={data.pair.timezone} current />
+            {data.partner ? <PersonCard person={data.partner} row={data.partner.today} todayKey={data.todayKey} timezone={data.pair.timezone} /> : <WaitingPartnerCard />}
           </div>
         </div>
 
@@ -399,8 +436,8 @@ function PairTab({ data }: { data: DashboardData }) {
       <div className="glass-card rounded-[2rem] p-5">
         <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhìn thấy nhau</p>
         <div className="mt-4 grid gap-3">
-          <PersonCard person={data.viewer} row={data.viewer.today} current />
-          {data.partner ? <PersonCard person={data.partner} row={data.partner.today} /> : <WaitingPartnerCard />}
+          <PersonCard person={data.viewer} row={data.viewer.today} todayKey={data.todayKey} timezone={data.pair.timezone} current />
+          {data.partner ? <PersonCard person={data.partner} row={data.partner.today} todayKey={data.todayKey} timezone={data.pair.timezone} /> : <WaitingPartnerCard />}
         </div>
       </div>
 
@@ -519,8 +556,24 @@ function normalizeDashboardTab(value: string | undefined): DashboardTab {
   return "today";
 }
 
-function dashboardTabHref(tab: DashboardTab) {
-  return tab === "today" ? "/" : `/?tab=${tab}`;
+function normalizeGoalTab(value: string | undefined): GoalTab {
+  if (value === "screen_time" || value === "body") {
+    return value;
+  }
+
+  return "study";
+}
+
+function dashboardTabHref(tab: DashboardTab, goal: GoalTab) {
+  if (tab === "today") {
+    return goal === "study" ? "/" : `/?goal=${goal}`;
+  }
+
+  return `/?tab=${tab}`;
+}
+
+function goalTabHref(goal: GoalTab) {
+  return goal === "study" ? "/" : `/?goal=${goal}`;
 }
 
 function ConfigState() {
@@ -550,6 +603,33 @@ function SimpleState({
         <p className="mt-4 text-base leading-7 text-[var(--muted)]">{copy}</p>
       </div>
     </main>
+  );
+}
+
+function GoalTabCard({
+  href,
+  title,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      className={`inline-flex items-center justify-center gap-2 rounded-[1rem] border px-3 py-3 text-sm font-medium transition ${
+        active
+          ? "border-black/12 bg-white text-[var(--foreground)] shadow-[0_16px_32px_rgba(27,25,22,0.08)]"
+          : "border-black/8 bg-white/62 hover:border-black/12 hover:bg-white/80"
+      }`}
+    >
+      <Icon className={`size-4 ${active ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} />
+      <span className={active ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>{title}</span>
+    </Link>
   );
 }
 
@@ -645,12 +725,19 @@ function StatPill({
 function PersonCard({
   person,
   row,
+  todayKey,
+  timezone,
   current = false,
 }: {
   person: PersonSummary;
   row: DailyCheckinRow | null;
+  todayKey: string;
+  timezone: string;
   current?: boolean;
 }) {
+  const bodyScheduledToday = getBodyScheduledDays(person.goals.body).includes(getWeekdayInTimezone(todayKey, timezone));
+  const dayStatus = row?.submitted_at ? row.personal_day_status : row ? "draft_live" : "waiting";
+
   return (
     <div className="rounded-[1.5rem] border border-black/8 bg-white/70 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -660,15 +747,15 @@ function PersonCard({
           </p>
           <p className="text-sm text-[var(--muted)]">{getFocusLabel(person.focusMode)}</p>
         </div>
-        <StatusPill
-          label="Hôm nay"
-          status={row?.submitted_at ? row.personal_day_status : "waiting"}
-        />
+        <StatusPill label="Hôm nay" status={dayStatus} />
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-[var(--muted)]">
-        <MiniMetric label="Study" value={row?.study_status ?? "pending"} />
-        <MiniMetric label="Screen" value={row?.screen_time_status ?? "pending"} />
-        <MiniMetric label="Body" value={row?.body_status ?? "pending"} />
+        <MiniMetric label="Study" value={getGoalDisplayStatus({ row, category: "study", scheduledToday: true })} />
+        <MiniMetric
+          label="Screen"
+          value={getGoalDisplayStatus({ row, category: "screen_time", scheduledToday: true })}
+        />
+        <MiniMetric label="Body" value={getGoalDisplayStatus({ row, category: "body", scheduledToday: bodyScheduledToday })} />
       </div>
       <p className="mt-3 text-sm text-[var(--muted)]">Streak cá nhân: {person.streak} ngày</p>
     </div>
@@ -703,6 +790,80 @@ function HistoryBadge({ label, status, shared = false }: { label: string; status
   );
 }
 
+function getGoalDisplayStatus({
+  row,
+  category,
+  scheduledToday,
+  partnerMissing = false,
+}: {
+  row: DailyCheckinRow | null;
+  category: GoalCategory;
+  scheduledToday: boolean;
+  partnerMissing?: boolean;
+}) {
+  if (partnerMissing) {
+    return "waiting";
+  }
+
+  if (!scheduledToday) {
+    return "na";
+  }
+
+  const rawStatus = getRawGoalStatus(row, category);
+
+  if (row?.submitted_at) {
+    return rawStatus;
+  }
+
+  if (!hasGoalDraftContent(row, category)) {
+    return "unsaved";
+  }
+
+  if (rawStatus === "pass") {
+    return "ready";
+  }
+
+  if (rawStatus === "fail") {
+    return "needs_work";
+  }
+
+  return "saved";
+}
+
+function getRawGoalStatus(row: DailyCheckinRow | null, category: GoalCategory) {
+  if (!row) {
+    return "pending";
+  }
+
+  if (category === "study") return row.study_status;
+  if (category === "screen_time") return row.screen_time_status;
+  return row.body_status;
+}
+
+function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory) {
+  if (!row) {
+    return false;
+  }
+
+  if (category === "study") {
+    return (
+      typeof row.study_minutes === "number" ||
+      Boolean(row.study_note) ||
+      Boolean(row.study_proof_path || row.study_had_proof)
+    );
+  }
+
+  if (category === "screen_time") {
+    return (
+      typeof row.screen_time_minutes === "number" ||
+      Boolean(row.screen_time_note) ||
+      Boolean(row.screen_time_proof_path || row.screen_time_had_proof)
+    );
+  }
+
+  return Boolean(row.body_completed || row.body_note || row.body_proof_path || row.body_had_proof);
+}
+
 function StatusPill({
   label,
   status,
@@ -730,9 +891,14 @@ function statusLabel(status: string) {
   if (status === "pass" || status === "shared_pass") return "Pass";
   if (status === "fail" || status === "shared_fail") return "Trượt";
   if (status === "protected" || status === "grace_protected") return "Grace giữ";
+  if (status === "ready") return "Sẵn khóa";
+  if (status === "saved") return "Đã lưu";
+  if (status === "needs_work") return "Còn thiếu";
   if (status === "na") return "N/A";
+  if (status === "unsaved") return "Chưa lưu";
   if (status === "waiting" || status === "waiting_for_partner") return "Đang chờ";
   if (status === "waiting_for_you") return "Tới lượt bạn";
+  if (status === "draft_live") return "Chưa khóa";
   if (status === "draft") return "Draft";
   if (status === "idle" || status === "missing") return "Chưa có";
   return "Pending";
@@ -761,6 +927,24 @@ function statusTone(status: string, muted: boolean) {
   }
 
   if (status === "protected" || status === "grace_protected") {
+    return muted
+      ? "border border-amber-200 bg-amber-50 text-amber-700"
+      : "border border-amber-200 bg-amber-100 text-amber-800";
+  }
+
+  if (status === "ready") {
+    return muted
+      ? "border border-teal-200 bg-teal-50 text-teal-700"
+      : "border border-teal-200 bg-teal-100 text-teal-800";
+  }
+
+  if (status === "saved" || status === "draft_live") {
+    return muted
+      ? "border border-sky-200 bg-sky-50 text-sky-700"
+      : "border border-sky-200 bg-sky-100 text-sky-800";
+  }
+
+  if (status === "needs_work") {
     return muted
       ? "border border-amber-200 bg-amber-50 text-amber-700"
       : "border border-amber-200 bg-amber-100 text-amber-800";
