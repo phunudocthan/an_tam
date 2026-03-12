@@ -305,34 +305,43 @@ function TodayTab({
               title="Body"
               icon={Dumbbell}
               accent="var(--rose)"
-              target={getTargetText(data.viewer.goals.body, "body")}
-              label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
+              target={`${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`}
+              label={getGoalLabel(data.viewer.goals.body, "body")}
               status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
               partnerStatus={partnerBodyScheduledToday ? data.partner?.today?.body_status ?? "pending" : data.partner ? "na" : "pending"}
               viewerLabel={viewerName}
               partnerLabel={partnerName}
             >
-              <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
+              <form action={saveCheckinAction} className="flex flex-col gap-4">
                 <input type="hidden" name="category" value="body" />
-                <div className="space-y-3">
-                  <label className="inline-flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
-                    <input type="checkbox" name="bodyCompleted" defaultChecked={data.viewer.today?.body_completed ?? false} />
-                    Hôm nay tôi đã bám đúng plan body của mình
-                  </label>
-                  <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
-                    {bodyScheduledToday
-                      ? "Body được tính hôm nay. Proof là bắt buộc để mục này pass."
-                      : "Hôm nay không nằm trong lịch body của bạn, nên card này đang ở trạng thái N/A."}
-                  </p>
-                </div>
+                <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-4 text-[var(--foreground)]">
+                  <input
+                    type="checkbox"
+                    name="bodyCompleted"
+                    defaultChecked={data.viewer.today?.body_completed ?? false}
+                    className="mt-1 size-4 shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-7">Tôi đã bám đúng plan body hôm nay</span>
+                    <span className="block text-sm leading-7 text-[var(--muted)]">
+                      Dùng cho buổi gym, nutrition, hoặc recovery của riêng bạn.
+                    </span>
+                  </span>
+                </label>
 
-                <div className="flex h-full flex-col gap-3">
+                <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
+                  {bodyScheduledToday
+                    ? "Hôm nay body được tính. Cần ảnh bằng chứng để mục này pass."
+                    : "Hôm nay không nằm trong lịch body của bạn, nên mục này đang ở trạng thái N/A."}
+                </p>
+
+                <div className="flex flex-col gap-3">
                   <ProofUploadField
                     name="bodyProof"
                     label="Ảnh bằng chứng"
                     buttonLabel="Chọn ảnh bằng chứng"
                     accept={PROOF_INPUT_ACCEPT}
-                    helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay" : "Tự xóa khi sang ngày mới"}
+                    helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
                   />
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Note</span>
@@ -340,10 +349,10 @@ function TodayTab({
                       name="bodyNote"
                       rows={3}
                       defaultValue={data.viewer.today?.body_note ?? ""}
-                      className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     />
                   </label>
-                  <div className="mt-auto pt-1">
+                  <div className="pt-1">
                     <SaveButton label="Lưu body" fullWidth />
                   </div>
                 </div>
