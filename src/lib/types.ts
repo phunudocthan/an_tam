@@ -2,6 +2,7 @@ import {
   CHECKIN_STATUSES,
   GOAL_CATEGORIES,
   PERSONAL_DAY_STATUSES,
+  PROOF_REACTION_KEYS,
   REVIEW_TYPES,
 } from "@/lib/constants";
 
@@ -9,9 +10,18 @@ export type GoalCategory = (typeof GOAL_CATEGORIES)[number];
 export type CheckinStatus = (typeof CHECKIN_STATUSES)[number];
 export type PersonalDayStatus = (typeof PERSONAL_DAY_STATUSES)[number];
 export type ReviewType = (typeof REVIEW_TYPES)[number];
+export type ProofReactionKey = (typeof PROOF_REACTION_KEYS)[number];
 
 export type BodyRuleType = "workout" | "nutrition" | "recovery";
 export type BodyFocus = "gain" | "cut";
+export type TodayStage =
+  | "drafting"
+  | "ready_to_submit"
+  | "submitted_waiting_partner"
+  | "shared_pass"
+  | "protected_by_grace"
+  | "missed";
+export type GoalStage = "not_started" | "in_progress" | "needs_fix" | "ready" | "locked" | "missed" | "na";
 
 export type GoalConfigRow = {
   id: string;
@@ -105,6 +115,16 @@ export type AiReviewRow = {
   generated_at: string;
 };
 
+export type ProofReactionRow = {
+  id: string;
+  pair_id: string;
+  checkin_id: string;
+  category: GoalCategory;
+  reactor_user_id: string;
+  reaction_key: ProofReactionKey;
+  created_at: string;
+};
+
 export type GoalConfigMap = Record<GoalCategory, GoalConfigRow | null>;
 
 export type PersonSummary = {
@@ -134,6 +154,49 @@ export type WeeklyStats = {
   bodyScheduledDays: number;
 };
 
+export type TodaySummary = {
+  eyebrow: string;
+  title: string;
+  copy: string;
+  nextStep: string;
+};
+
+export type DayLane = {
+  userId: string;
+  name: string;
+  focusMode: BodyFocus | null;
+  streak: number;
+  dayStage: TodayStage | "waiting";
+  submitted: boolean;
+  submittedAt: string | null;
+  personalStatus: PersonalDayStatus | "waiting";
+  goalStages: Record<GoalCategory, GoalStage>;
+  readyCount: number;
+  lockedCount: number;
+  missingCategories: GoalCategory[];
+};
+
+export type ProofReactionSummary = {
+  reactorUserId: string;
+  reactorName: string;
+  reactionKey: ProofReactionKey;
+};
+
+export type VisibleProof = {
+  checkinId: string;
+  pairId: string;
+  ownerUserId: string;
+  ownerName: string;
+  category: GoalCategory;
+  imageUrl: string;
+  note: string | null;
+  expiresAt: string;
+  isViewerProof: boolean;
+  seenByPartner: boolean;
+  reactions: ProofReactionSummary[];
+  viewerReaction: ProofReactionKey | null;
+};
+
 export type DashboardData = {
   pair: PairRow;
   viewer: PersonSummary;
@@ -144,18 +207,15 @@ export type DashboardData = {
   sharedStreak: number;
   sharedGraceProtectedDates: string[];
   weeklyPact: WeeklyPactRow | null;
-  dailyRecap: string;
+  todayStage: TodayStage;
+  todaySummary: TodaySummary;
+  viewerLane: DayLane;
+  partnerLane: DayLane | null;
+  visibleProofs: VisibleProof[];
   weeklyInsight: AiReviewRow | null;
   weeklyStats: {
     viewer: WeeklyStats;
     partner: WeeklyStats | null;
   };
   history: HistoryDay[];
-  todayState:
-    | "draft"
-    | "waiting_for_you"
-    | "waiting_for_partner"
-    | "shared_pass"
-    | "grace_protected"
-    | "shared_fail";
 };

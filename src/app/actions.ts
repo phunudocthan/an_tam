@@ -10,7 +10,9 @@ import {
   APP_NAME,
   DEFAULT_GOAL_PRESET,
   MAX_PROOF_SIZE_BYTES,
+  GOAL_CATEGORIES,
   PROOF_BUCKET,
+  PROOF_REACTION_KEYS,
   WEEKLY_PACTS,
 } from "@/lib/constants";
 import { getExpiryForDate, getTodayKey, getWeekRange } from "@/lib/date";
@@ -21,7 +23,15 @@ import {
 } from "@/lib/dashboard";
 import { getPairTimezone } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { DailyCheckinRow, GoalConfigMap, GoalConfigRow, PairMemberRow, PairRow } from "@/lib/types";
+import type {
+  DailyCheckinRow,
+  GoalCategory,
+  GoalConfigMap,
+  GoalConfigRow,
+  PairMemberRow,
+  PairRow,
+  ProofReactionRow,
+} from "@/lib/types";
 
 export type PasswordLoginState = {
   error: string | null;
@@ -36,6 +46,12 @@ const setupSchema = z.object({
   bodyLabel: z.string().trim().min(3).max(80),
   weeklyPactKey: z.string().trim().min(1),
   weeklyPactNote: z.string().trim().max(160).optional().default(""),
+});
+
+const proofReactionSchema = z.object({
+  checkinId: z.string().uuid(),
+  category: z.enum(GOAL_CATEGORIES),
+  reactionKey: z.enum(PROOF_REACTION_KEYS),
 });
 
 export async function loginWithPasswordAction(
@@ -400,6 +416,89 @@ export async function saveWeeklyPactAction(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function toggleProofReactionAction(formData: FormData) {
+  const user = await requireUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const parsed = proofReactionSchema.parse({
+    checkinId: formData.get("checkinId"),
+    category: formData.get("category"),
+    reactionKey: formData.get("reactionKey"),
+  });
+
+  const { admin, pair } = await getMemberContext(user.id);
+  const { data: row, error: rowError } = await admin
+    .from("daily_checkins")
+    .select("*")
+    .eq("id", parsed.checkinId)
+    .eq("pair_id", pair.id)
+    .maybeSingle();
+
+  if (rowError) {
+    throw new Error(rowError.message);
+  }
+
+  const targetRow = row as DailyCheckinRow | null;
+
+  if (!targetRow || targetRow.user_id === user.id) {
+    revalidatePath("/");
+    return;
+  }
+
+  const proofMeta = getProofMeta(targetRow, parsed.category);
+
+  const visibleUntil = normalizeProofExpiry(targetRow.entry_date, pair.timezone, proofMeta.expiresAt);
+
+  if (!proofMeta.path || !visibleUntil || new Date(visibleUntil).getTime() <= Date.now()) {
+    revalidatePath("/");
+    return;
+  }
+
+  const { data: existing, error: existingError } = await admin
+    .from("proof_reactions")
+    .select("*")
+    .eq("checkin_id", parsed.checkinId)
+    .eq("category", parsed.category)
+    .eq("reactor_user_id", user.id)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const current = (existing as ProofReactionRow | null) ?? null;
+
+  if (current?.reaction_key === parsed.reactionKey) {
+    const { error } = await admin.from("proof_reactions").delete().eq("id", current.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  } else {
+    const { error } = await admin.from("proof_reactions").upsert(
+      {
+        pair_id: pair.id,
+        checkin_id: parsed.checkinId,
+        category: parsed.category,
+        reactor_user_id: user.id,
+        reaction_key: parsed.reactionKey,
+      },
+      {
+        onConflict: "checkin_id,category,reactor_user_id",
+      },
+    );
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  revalidatePath("/");
+}
+
 export async function refreshWeeklyInsightAction() {
   const user = await requireUser();
 
@@ -529,6 +628,36 @@ function readText(value: FormDataEntryValue | null) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function getProofMeta(row: DailyCheckinRow, category: GoalCategory) {
+  if (category === "study") {
+    return {
+      path: row.study_proof_path,
+      expiresAt: row.study_proof_expires_at,
+    };
+  }
+
+  if (category === "screen_time") {
+    return {
+      path: row.screen_time_proof_path,
+      expiresAt: row.screen_time_proof_expires_at,
+    };
+  }
+
+  return {
+    path: row.body_proof_path,
+    expiresAt: row.body_proof_expires_at,
+  };
+}
+
+function normalizeProofExpiry(entryDate: string, timezone: string, storedExpiry: string | null) {
+  if (!storedExpiry) {
+    return null;
+  }
+
+  const canonical = getExpiryForDate(entryDate, timezone);
+  return new Date(storedExpiry).getTime() <= new Date(canonical).getTime() ? storedExpiry : canonical;
 }
 
 async function maybeUploadProof({

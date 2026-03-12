@@ -20,36 +20,30 @@ export default async function LoginPage({
             </div>
 
             <h1 className="display-type mt-6 max-w-xl text-5xl font-semibold leading-[0.95] text-[var(--foreground)] sm:text-6xl lg:text-7xl">
-              Vào lại nhịp của hai người.
+              Vào lại nhịp chung.
             </h1>
 
             <p className="mt-4 max-w-md text-sm leading-7 text-[var(--muted)] sm:text-base">
-              Private space cho hai người, không có bước thừa.
+              Chỉ cần đúng mật khẩu của mình là vào lại được ngay. Không email, không magic link, không bước thừa.
             </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <PillStat label="2 pass" />
-              <PillStat label="0 email" />
-              <PillStat label="1 nhịp chung" />
-            </div>
           </div>
 
-          <div className="relative z-10 mt-10 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="relative z-10 mt-10 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
             <div className="rounded-[2rem] border border-black/8 bg-white/68 p-5">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Đăng nhập</p>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">Mỗi người một mật khẩu.</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">Vào đúng người, vào thẳng app.</p>
+              <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">Mỗi người một mật khẩu riêng.</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">Vào đúng mình, rồi quay lại Today board.</p>
             </div>
 
             <div className="rounded-[2rem] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,249,242,0.68))] p-5">
               <div className="grid gap-3">
-                <IdentityCard title="Bạn" subtitle="Mật khẩu riêng" />
+                <IdentityCard title="Bạn" subtitle="Một mật khẩu riêng" />
                 <div className="flex items-center gap-3 px-2 text-[11px] uppercase tracking-[0.26em] text-[var(--muted)]">
                   <span className="h-px flex-1 bg-black/10" />
                   Cùng một nhịp
                   <span className="h-px flex-1 bg-black/10" />
                 </div>
-                <IdentityCard title="Người kia" subtitle="Mật khẩu riêng" />
+                <IdentityCard title="Người còn lại" subtitle="Một mật khẩu khác" />
               </div>
             </div>
           </div>
@@ -66,11 +60,11 @@ export default async function LoginPage({
             </div>
 
             <h1 className="display-type mt-5 text-5xl font-semibold leading-none text-[var(--foreground)] sm:text-6xl lg:hidden">
-              Vào lại nhịp của hai người.
+              Vào lại nhịp chung.
             </h1>
 
             <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-[var(--muted)] sm:text-base lg:hidden">
-              Nhập mật khẩu riêng của bạn để vào app.
+              Nhập đúng mật khẩu riêng của bạn để vào app.
             </p>
           </div>
 
@@ -78,14 +72,6 @@ export default async function LoginPage({
         </section>
       </div>
     </main>
-  );
-}
-
-function PillStat({ label }: { label: string }) {
-  return (
-    <div className="rounded-full border border-black/10 bg-white/72 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-      {label}
-    </div>
   );
 }
 

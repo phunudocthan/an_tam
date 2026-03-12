@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Dumbbell,
+  Eye,
   Flame,
   HeartHandshake,
   LogOut,
@@ -13,6 +14,7 @@ import {
   Smartphone,
   Sparkles,
   TimerReset,
+  type LucideIcon,
 } from "lucide-react";
 import {
   logoutAction,
@@ -20,9 +22,10 @@ import {
   saveCheckinAction,
   saveWeeklyPactAction,
   submitDayAction,
+  toggleProofReactionAction,
 } from "@/app/actions";
 import { ProofUploadField } from "@/components/proof-upload-field";
-import { PROOF_INPUT_ACCEPT, WEEKLY_PACTS } from "@/lib/constants";
+import { PROOF_INPUT_ACCEPT, PROOF_REACTION_OPTIONS, WEEKLY_PACTS } from "@/lib/constants";
 import {
   getBodyRuleLabel,
   getBodyScheduledDays,
@@ -34,33 +37,23 @@ import {
 } from "@/lib/dashboard";
 import { getWeekdayInTimezone } from "@/lib/date";
 import { hasSupabaseEnv } from "@/lib/env";
-import type { DailyCheckinRow, DashboardData, GoalCategory, PersonSummary } from "@/lib/types";
+import type { DashboardData, DayLane, GoalCategory, GoalStage, TodayStage, VisibleProof } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-type DashboardTab = "today" | "pair" | "review";
+type DashboardTab = "today" | "review";
 type GoalTab = GoalCategory;
 
 const DASHBOARD_TABS = [
-  { key: "today" as const, label: "Hôm nay", icon: CheckCircle2 },
-  { key: "pair" as const, label: "Cặp đôi", icon: HeartHandshake },
+  { key: "today" as const, label: "Hôm nay", icon: HeartHandshake },
   { key: "review" as const, label: "Review", icon: Sparkles },
-] satisfies Array<{
-  key: DashboardTab;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}>;
+] satisfies Array<{ key: DashboardTab; label: string; icon: LucideIcon }>;
 
 const GOAL_TABS = [
   { key: "study" as const, label: "Study", icon: MoonStar, accent: "var(--gold)" },
   { key: "screen_time" as const, label: "Screen time", icon: Smartphone, accent: "var(--accent)" },
   { key: "body" as const, label: "Body", icon: Dumbbell, accent: "var(--rose)" },
-] satisfies Array<{
-  key: GoalTab;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent: string;
-}>;
+] satisfies Array<{ key: GoalTab; label: string; icon: LucideIcon; accent: string }>;
 
 export default async function HomePage({
   searchParams,
@@ -92,7 +85,7 @@ export default async function HomePage({
     return (
       <SimpleState
         eyebrow="Access locked"
-        title="Tài khoản này chưa được ghép vào pair."
+        title="Tài khoản này chưa nằm trong pair."
         copy={state.reason}
       />
     );
@@ -102,7 +95,7 @@ export default async function HomePage({
     return (
       <SimpleState
         eyebrow="Database chưa xong"
-        title="App đã được scaffold, nhưng schema Supabase chưa có."
+        title="Schema Supabase của app này vẫn chưa đủ."
         copy={state.message}
       />
     );
@@ -111,72 +104,31 @@ export default async function HomePage({
   const { data } = state;
   const activeTab = normalizeDashboardTab(params.tab);
   const activeGoal = normalizeGoalTab(params.goal);
-  const bodyScheduledToday = getBodyScheduledDays(data.viewer.goals.body).includes(
-    getWeekdayInTimezone(data.todayKey, data.pair.timezone),
-  );
-  const partnerName = data.partner?.name ?? null;
 
   return (
     <main className="page-shell px-4 py-5 sm:px-6 sm:py-6">
       <div className="mx-auto max-w-7xl">
-        <header className="glass-card mb-6 rounded-[2rem] px-5 py-5 sm:px-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 px-3 py-1.5 text-xs font-medium tracking-[0.18em] text-[var(--muted)] uppercase">
-                <HeartHandshake className="size-4" />
-                Couple accountability MVP
-              </div>
-              <h1 className="display-type text-3xl font-semibold leading-tight sm:text-5xl">
-                Khác mục tiêu, nhưng vẫn phải chờ nhau.
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-                Hôm nay {data.viewer.name} đang đi theo hướng {getFocusLabel(data.viewer.focusMode).toLowerCase()}.
-                {data.partner
-                  ? ` ${data.partner.name} thì khác hướng, nhưng shared streak chỉ đi tiếp khi cả hai đều qua ngày.`
-                  : " Còn 1 người chưa setup xong, nên board này vẫn đang chờ đủ 2 người để bật đúng loop chờ nhau."}
-              </p>
-            </div>
+        <PageHeader data={data} activeGoal={activeGoal} />
 
-            <div className="flex flex-wrap items-center gap-3">
-              <StatPill icon={Flame} label="Shared streak" value={`${data.sharedStreak} ngày`} />
-              <StatPill
-                icon={ShieldCheck}
-                label="Grace"
-                value={data.sharedGraceProtectedDates.includes(data.todayKey) ? "Đã dùng hôm nay" : "1 / 7 ngày"}
-              />
-              <StatPill icon={Clock3} label="State" value={todayStateLabel(data.todayState, partnerName)} />
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
-                >
-                  <LogOut className="size-4" />
-                  Đăng xuất
-                </button>
-              </form>
-            </div>
-          </div>
-        </header>
-
-        <section className="mb-6">
+        <section className="mb-5">
           <div className="glass-card sticky top-3 z-10 rounded-[1.5rem] p-2">
             <nav className="flex gap-2 overflow-x-auto pb-1">
               {DASHBOARD_TABS.map((tab) => {
                 const Icon = tab.icon;
-                const isActive = activeTab === tab.key;
+                const active = activeTab === tab.key;
 
                 return (
                   <Link
                     key={tab.key}
                     href={dashboardTabHref(tab.key, activeGoal)}
                     scroll={false}
-                    className={`inline-flex min-w-[8.75rem] flex-1 items-center justify-center gap-2 rounded-[1.15rem] px-4 py-3 text-sm font-medium whitespace-nowrap transition ${
-                      isActive
+                    className={`inline-flex min-h-11 min-w-[8rem] flex-1 items-center justify-center gap-2 rounded-[1.15rem] px-4 py-3 text-sm font-medium whitespace-nowrap transition ${
+                      active
                         ? "border border-black/10 bg-white text-[var(--foreground)] shadow-[0_16px_30px_rgba(27,25,22,0.08)]"
-                        : "bg-white/55 text-[var(--muted)] hover:bg-white/85"
+                        : "bg-white/60 text-[var(--muted)] hover:bg-white/85"
                     }`}
                   >
-                    <Icon className={`size-4 ${isActive ? "text-[var(--accent)]" : ""}`} />
+                    <Icon className={`size-4 ${active ? "text-[var(--accent)]" : ""}`} />
                     {tab.label}
                   </Link>
                 );
@@ -185,344 +137,579 @@ export default async function HomePage({
           </div>
         </section>
 
-        {activeTab === "today" ? <TodayTab data={data} bodyScheduledToday={bodyScheduledToday} activeGoal={activeGoal} /> : null}
-        {activeTab === "pair" ? <PairTab data={data} /> : null}
+        {activeTab === "today" ? <TodayTab data={data} activeGoal={activeGoal} /> : null}
         {activeTab === "review" ? <ReviewTab data={data} /> : null}
       </div>
     </main>
   );
 }
 
-function TodayTab({
-  data,
-  bodyScheduledToday,
-  activeGoal,
-}: {
-  data: DashboardData;
-  bodyScheduledToday: boolean;
-  activeGoal: GoalTab;
-}) {
-  const viewerName = data.viewer.name;
-  const partnerName = data.partner?.name ?? null;
-  const partnerBodyScheduledToday =
-    data.partner &&
-    getBodyScheduledDays(data.partner.goals.body).includes(getWeekdayInTimezone(data.todayKey, data.pair.timezone));
-
-  const goalCards = GOAL_TABS.map((goal) => {
-    const target =
-      goal.key === "body"
-        ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
-        : getTargetText(data.viewer.goals[goal.key], goal.key);
-
-    const headline = getGoalLabel(data.viewer.goals[goal.key], goal.key);
-    const scheduledToday = goal.key === "body" ? bodyScheduledToday : true;
-    const partnerScheduledToday = goal.key === "body" ? Boolean(partnerBodyScheduledToday) : true;
-
-    return {
-      ...goal,
-      headline,
-      target,
-      viewerStatus: getGoalDisplayStatus({
-        row: data.viewer.today,
-        category: goal.key,
-        scheduledToday,
-      }),
-      partnerStatus: getGoalDisplayStatus({
-        row: data.partner?.today ?? null,
-        category: goal.key,
-        scheduledToday: data.partner ? partnerScheduledToday : false,
-        partnerMissing: !data.partner,
-      }),
-    };
-  });
-
-  const activeGoalCard = goalCards.find((goal) => goal.key === activeGoal) ?? goalCards[0];
-
+function PageHeader({ data, activeGoal }: { data: DashboardData; activeGoal: GoalTab }) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
-      <div className="glass-card rounded-[2rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--muted)]">Today board</p>
-            <h2 className="display-type mt-2 text-3xl font-semibold">Ngày hôm nay đang ở đâu?</h2>
+    <header className="glass-card mb-5 rounded-[2rem] px-5 py-5 sm:px-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-3xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/75 px-3 py-1.5 text-xs font-medium tracking-[0.18em] text-[var(--muted)] uppercase">
+            <HeartHandshake className="size-4" />
+            An Tam
           </div>
-          <div className="max-w-3xl rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
-            {data.dailyRecap}
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 gap-2">
-          {goalCards.map((goal) => (
-            <GoalTabCard
-              key={goal.key}
-              href={goalTabHref(goal.key)}
-              title={goal.label}
-              icon={goal.icon}
-              active={goal.key === activeGoal}
-            />
-          ))}
-        </div>
-
-        <div className="mt-4 rounded-[1.5rem] border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm leading-7 text-emerald-900">
-          Lưu từng mục chỉ tạo bản nháp cá nhân hoặc báo rằng mục đó đã đủ điều kiện để khóa ngày. Chỉ sau khi bấm
-          <span className="font-semibold"> Khóa ngày hôm nay</span>, app mới chốt kết quả; shared streak chỉ tăng khi
-          cả hai cùng khóa và cùng đạt chuẩn riêng của mình.
-        </div>
-
-        <div className="mt-5">
-          <CheckinCard
-            category={activeGoalCard.key}
-            title={activeGoalCard.label}
-            icon={activeGoalCard.icon}
-            accent={activeGoalCard.accent}
-            target={activeGoalCard.target}
-            label={activeGoalCard.headline}
-            status={activeGoalCard.viewerStatus}
-            partnerStatus={activeGoalCard.partnerStatus}
-            viewerLabel={viewerName}
-            partnerLabel={partnerName}
-          >
-            {activeGoal === "study" ? (
-              <form action={saveCheckinAction} className="flex flex-col gap-4">
-                <input type="hidden" name="category" value="study" />
-                <label className="block space-y-2 text-sm text-[var(--muted)]">
-                  <span>Số phút học</span>
-                  <input
-                    type="number"
-                    min={0}
-                    name="studyMinutes"
-                    defaultValue={data.viewer.today?.study_minutes ?? ""}
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-                <ProofUploadField
-                  name="studyProof"
-                  label="Ảnh bằng chứng"
-                  buttonLabel="Chọn ảnh bằng chứng"
-                  accept={PROOF_INPUT_ACCEPT}
-                  helper={data.viewer.today?.study_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
-                />
-                <label className="block space-y-2 text-sm text-[var(--muted)]">
-                  <span>Note</span>
-                  <textarea
-                    name="studyNote"
-                    rows={3}
-                    defaultValue={data.viewer.today?.study_note ?? ""}
-                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-                <div className="pt-1">
-                  <SaveButton label="Lưu study" fullWidth />
-                </div>
-              </form>
-            ) : null}
-
-            {activeGoal === "screen_time" ? (
-              <form action={saveCheckinAction} className="flex flex-col gap-4">
-                <input type="hidden" name="category" value="screen_time" />
-                <label className="block space-y-2 text-sm text-[var(--muted)]">
-                  <span>Screen time hôm nay (phút)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    name="screenTimeMinutes"
-                    defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-                <ProofUploadField
-                  name="screenTimeProof"
-                  label="Screenshot"
-                  buttonLabel="Tải screenshot"
-                  accept={PROOF_INPUT_ACCEPT}
-                  helper={data.viewer.today?.screen_time_had_proof ? "Đã có screenshot hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Không bắt buộc"}
-                />
-                <label className="block space-y-2 text-sm text-[var(--muted)]">
-                  <span>Note</span>
-                  <textarea
-                    name="screenTimeNote"
-                    rows={3}
-                    defaultValue={data.viewer.today?.screen_time_note ?? ""}
-                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-                <div className="pt-1">
-                  <SaveButton label="Lưu screen time" fullWidth />
-                </div>
-              </form>
-            ) : null}
-
-            {activeGoal === "body" ? (
-              <form action={saveCheckinAction} className="flex flex-col gap-4">
-                <input type="hidden" name="category" value="body" />
-                <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-4 text-[var(--foreground)]">
-                  <input
-                    type="checkbox"
-                    name="bodyCompleted"
-                    defaultChecked={data.viewer.today?.body_completed ?? false}
-                    className="mt-1 size-4 shrink-0"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium leading-7">Tôi đã bám đúng plan body hôm nay</span>
-                    <span className="block text-sm leading-7 text-[var(--muted)]">
-                      Dùng cho buổi gym, nutrition, hoặc recovery của riêng bạn.
-                    </span>
-                  </span>
-                </label>
-                <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
-                  {bodyScheduledToday
-                    ? "Hôm nay body được tính. Cần ảnh bằng chứng để mục này đủ điều kiện khóa ngày."
-                    : "Hôm nay không nằm trong lịch body của bạn, nên mục này đang ở trạng thái N/A."}
-                </p>
-                <ProofUploadField
-                  name="bodyProof"
-                  label="Ảnh bằng chứng"
-                  buttonLabel="Chọn ảnh bằng chứng"
-                  accept={PROOF_INPUT_ACCEPT}
-                  helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay, ảnh mới sẽ thay thế ảnh cũ" : "Tự xóa khi sang ngày mới"}
-                />
-                <label className="block space-y-2 text-sm text-[var(--muted)]">
-                  <span>Note</span>
-                  <textarea
-                    name="bodyNote"
-                    rows={3}
-                    defaultValue={data.viewer.today?.body_note ?? ""}
-                    className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                  />
-                </label>
-                <div className="pt-1">
-                  <SaveButton label="Lưu body" fullWidth />
-                </div>
-              </form>
-            ) : null}
-          </CheckinCard>
-        </div>
-      </div>
-
-      <aside className="space-y-4">
-        <div className="glass-card rounded-[2rem] p-5">
-          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Chờ nhau</p>
-          <div className="mt-4 grid gap-3">
-            <PersonCard person={data.viewer} row={data.viewer.today} todayKey={data.todayKey} timezone={data.pair.timezone} current />
-            {data.partner ? <PersonCard person={data.partner} row={data.partner.today} todayKey={data.todayKey} timezone={data.pair.timezone} /> : <WaitingPartnerCard />}
-          </div>
-        </div>
-
-        <div className="glass-card rounded-[2rem] p-5">
-          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Khóa ngày</p>
-          <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">{todayStateLabel(data.todayState, partnerName)}</h3>
-          <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-            Xong từng mục rồi khóa ngày để app chuyển sang trạng thái chờ nhau thật sự.
+          <h1 className="display-type mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
+            Today là chỗ để thấy mình đang ở đâu, người kia đang ở đâu.
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">
+            {data.todaySummary.copy}
           </p>
+        </div>
 
-          <form action={submitDayAction} className="mt-5">
+        <div className="flex flex-wrap items-center gap-3 xl:max-w-[28rem] xl:justify-end">
+          <StatPill icon={Flame} label="Shared streak" value={`${data.sharedStreak} ngày`} />
+          <StatPill
+            icon={ShieldCheck}
+            label="Grace"
+            value={data.sharedGraceProtectedDates.includes(data.todayKey) ? "Đang giữ hôm nay" : "1 lần / 7 ngày"}
+          />
+          <StatPill icon={Clock3} label="Đang mở" value={goalTabLabel(activeGoal)} />
+          <form action={logoutAction}>
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/78 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
             >
-              Khóa ngày hôm nay
-              <ArrowRight className="size-4" />
+              <LogOut className="size-4" />
+              Đăng xuất
             </button>
           </form>
         </div>
-      </aside>
+      </div>
+    </header>
+  );
+}
+
+function TodayTab({ data, activeGoal }: { data: DashboardData; activeGoal: GoalTab }) {
+  const bodyScheduledToday = getBodyScheduledDays(data.viewer.goals.body).includes(
+    getWeekdayInTimezone(data.todayKey, data.pair.timezone),
+  );
+  const activeGoalConfig = data.viewer.goals[activeGoal];
+  const activeGoalMeta = GOAL_TABS.find((goal) => goal.key === activeGoal) ?? GOAL_TABS[0];
+  const activeGoalStage = data.viewerLane.goalStages[activeGoal];
+  const activePartnerGoalStage = data.partnerLane?.goalStages[activeGoal] ?? null;
+  const activeGoalTarget =
+    activeGoal === "body"
+      ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
+      : getTargetText(activeGoalConfig, activeGoal);
+
+  return (
+    <section className="space-y-4">
+      <TodayStateHeader data={data} />
+
+      <div className="grid gap-4 xl:grid-cols-[1.04fr_0.96fr]">
+        <CoupleLaneCard data={data} />
+        <ProofTray data={data} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+        <section className="glass-card rounded-[2rem] p-5 sm:p-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Làm nốt hôm nay</p>
+                <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{getGoalLabel(activeGoalConfig, activeGoal)}</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">{activeGoalTarget}</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <StagePill label="Bạn" stage={activeGoalStage} />
+                {data.partnerLane ? <StagePill label={data.partnerLane.name} stage={activePartnerGoalStage ?? "not_started"} muted /> : null}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {GOAL_TABS.map((goal) => (
+                <GoalTabCard
+                  key={goal.key}
+                  href={goalTabHref(goal.key)}
+                  title={goal.label}
+                  icon={goal.icon}
+                  active={goal.key === activeGoal}
+                />
+              ))}
+            </div>
+
+            <GoalEditorCard data={data} activeGoal={activeGoal} bodyScheduledToday={bodyScheduledToday} accent={activeGoalMeta.accent} />
+          </div>
+        </section>
+
+        <aside className="space-y-4">
+          <SubmitCard data={data} />
+          <WeeklyPactCard data={data} />
+        </aside>
+      </div>
     </section>
   );
 }
 
-function PairTab({ data }: { data: DashboardData }) {
+function TodayStateHeader({ data }: { data: DashboardData }) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-      <div className="glass-card rounded-[2rem] p-5">
-        <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhìn thấy nhau</p>
-        <div className="mt-4 grid gap-3">
-          <PersonCard person={data.viewer} row={data.viewer.today} todayKey={data.todayKey} timezone={data.pair.timezone} current />
-          {data.partner ? <PersonCard person={data.partner} row={data.partner.today} todayKey={data.todayKey} timezone={data.pair.timezone} /> : <WaitingPartnerCard />}
+    <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="glass-card rounded-[2rem] p-5 sm:p-6">
+        <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">{data.todaySummary.eyebrow}</p>
+        <h2 className="display-type mt-3 text-3xl font-semibold leading-tight text-[var(--foreground)] sm:text-4xl">
+          {data.todaySummary.title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">{data.todaySummary.copy}</p>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <StagePill label={data.viewerLane.name} stage={data.viewerLane.dayStage} />
+          {data.partnerLane ? <StagePill label={data.partnerLane.name} stage={data.partnerLane.dayStage} muted /> : null}
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="glass-card rounded-[2rem] p-5">
-          <div className="flex items-center gap-2 text-[var(--foreground)]">
-            <TimerReset className="size-4" />
-            <p className="font-semibold">Pact tuần</p>
+      <div className="glass-card rounded-[2rem] p-5 sm:p-6">
+        <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Bước tiếp theo</p>
+        <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/72 p-4">
+          <p className="text-base font-semibold text-[var(--foreground)]">{data.todaySummary.nextStep}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <MiniStat label="Cá nhân bạn" value={`${data.viewerLane.streak} ngày`} />
+          <MiniStat label="Goal đã sẵn" value={`${data.viewerLane.readyCount}/3`} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CoupleLaneCard({ data }: { data: DashboardData }) {
+  return (
+    <section className="glass-card rounded-[2rem] p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhịp của hai người</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Ai đang ở đâu trong ngày?</h2>
+        </div>
+        <div className="rounded-full border border-black/10 bg-white/72 px-4 py-2 text-sm font-medium text-[var(--foreground)]">
+          {todayStageLabel(data.todayStage)}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        <LaneCard lane={data.viewerLane} focusLabel={getFocusLabel(data.viewerLane.focusMode)} current />
+        {data.partnerLane ? (
+          <LaneCard lane={data.partnerLane} focusLabel={getFocusLabel(data.partnerLane.focusMode)} />
+        ) : (
+          <WaitingPartnerCard />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function LaneCard({
+  lane,
+  focusLabel,
+  current = false,
+}: {
+  lane: DayLane;
+  focusLabel: string;
+  current?: boolean;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-black/8 bg-white/72 p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-lg font-semibold text-[var(--foreground)]">
+            {lane.name}
+            {current ? " · bạn" : ""}
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">{focusLabel}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <StagePill label="Hôm nay" stage={lane.dayStage} compact />
+          <div className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--muted)]">
+            Streak {lane.streak} ngày
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {GOAL_TABS.map((goal) => (
+          <GoalProgressPill key={goal.key} label={goal.label} stage={lane.goalStages[goal.key]} />
+        ))}
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+        {lane.submitted
+          ? lane.dayStage === "shared_pass"
+            ? "Đã khóa ngày và cùng qua ngày."
+            : lane.dayStage === "protected_by_grace"
+              ? "Đã khóa ngày, hiện grace đang giữ nhịp."
+              : lane.dayStage === "missed"
+                ? "Đã khóa ngày nhưng hôm nay chưa giữ được nhịp."
+                : "Đã khóa ngày, đang chờ người còn lại."
+          : lane.dayStage === "ready_to_submit"
+            ? "Phần hôm nay đã đủ để khóa."
+            : `Còn thiếu ${formatCategoryList(lane.missingCategories)}.`}
+      </p>
+    </div>
+  );
+}
+
+function ProofTray({ data }: { data: DashboardData }) {
+  return (
+    <section className="glass-card rounded-[2rem] p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Proof đang còn sống</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nhìn thấy nhau trong cửa sổ ngắn này.</h2>
+        </div>
+        <div className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/72 px-4 py-2 text-sm text-[var(--muted)]">
+          <Eye className="size-4" />
+          Tới trưa hôm sau
+        </div>
+      </div>
+
+      {data.visibleProofs.length > 0 ? (
+        <div className="mt-5 space-y-3">
+          {data.visibleProofs.map((proof) => (
+            <ProofCard key={`${proof.checkinId}-${proof.category}`} proof={proof} timezone={data.pair.timezone} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-[1.5rem] border border-dashed border-black/12 bg-white/68 p-4 text-sm leading-7 text-[var(--muted)]">
+          Hôm nay chưa có proof nào còn trong cửa sổ nhìn thấy nhau. Khi một người lưu proof, người còn lại sẽ thấy nó ở đây
+          tới trưa hôm sau.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string }) {
+  return (
+    <article className="overflow-hidden rounded-[1.5rem] border border-black/8 bg-white/72">
+      <div className="flex flex-col gap-3 border-b border-black/8 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
+              {goalTabLabel(proof.category)}
+            </span>
+            <span className="text-sm text-[var(--muted)]">{proof.ownerName}</span>
           </div>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Shared streak là phần cứng. Pact tuần là phần mềm giúp hai người cảm thấy cùng phe.
+            {proof.note?.trim() ? proof.note : "Không để lại note. Proof này chỉ còn xem được trong cửa sổ ngắn."}
           </p>
-          <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
-            <select
-              name="templateKey"
-              defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
-              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-            >
-              {WEEKLY_PACTS.map((pact) => (
-                <option key={pact.key} value={pact.key}>
-                  {pact.title}
-                </option>
-              ))}
-            </select>
-            <textarea
-              name="note"
-              rows={3}
-              defaultValue={data.weeklyPact?.note ?? ""}
-              placeholder="Ví dụ: ai xong sớm thì nhắc người kia bằng 1 câu thôi, không cằn nhằn"
-              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-            />
-            <SaveButton label="Lưu pact tuần" subtle />
-          </form>
         </div>
 
-        <div className="glass-card rounded-[2rem] p-5">
-          <div className="flex items-center gap-2 text-[var(--foreground)]">
-            <HeartHandshake className="size-4" />
-            <p className="font-semibold">Nhịp chung hôm nay</p>
+        <div className="flex flex-wrap gap-2">
+          <div className={`rounded-full px-3 py-1.5 text-xs font-medium ${proof.seenByPartner ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-black/10 bg-white text-[var(--muted)]"}`}>
+            {proof.seenByPartner ? "Đã có phản hồi" : "Chưa có phản hồi"}
           </div>
-          <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
-            {data.dailyRecap}
+          <div className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--muted)]">
+            Xem tới {formatProofDeadline(proof.expiresAt, timezone)}
           </div>
         </div>
       </div>
+
+      <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
+        <div className="overflow-hidden rounded-[1.25rem] border border-black/8 bg-[#f4efe7]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase proof URLs are short-lived in this MVP. */}
+          <img src={proof.imageUrl} alt={`${proof.ownerName} - ${goalTabLabel(proof.category)}`} className="h-full min-h-[12rem] w-full object-cover" />
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Presence</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {proof.reactions.length > 0 ? (
+                proof.reactions.map((reaction) => (
+                  <span
+                    key={`${reaction.reactorUserId}-${reaction.reactionKey}`}
+                    className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
+                  >
+                    {reaction.reactorName}: {reactionLabel(reaction.reactionKey)}
+                  </span>
+                ))
+              ) : (
+                <span className="rounded-full border border-dashed border-black/12 bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--muted)]">
+                  Chưa có ai thả reaction
+                </span>
+              )}
+            </div>
+          </div>
+
+          {!proof.isViewerProof ? (
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Một phản hồi nhỏ là đủ</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PROOF_REACTION_OPTIONS.map((option) => {
+                  const active = proof.viewerReaction === option.key;
+
+                  return (
+                    <form key={option.key} action={toggleProofReactionAction}>
+                      <input type="hidden" name="checkinId" value={proof.checkinId} />
+                      <input type="hidden" name="category" value={proof.category} />
+                      <input type="hidden" name="reactionKey" value={option.key} />
+                      <button
+                        type="submit"
+                        className={`inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition ${
+                          active
+                            ? "border border-black/10 bg-[var(--foreground)] text-white"
+                            : "border border-black/10 bg-white text-[var(--foreground)] hover:bg-black/5"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    </form>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[1.25rem] border border-black/8 bg-white/78 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
+              Proof của bạn sẽ ở đây tới trưa hôm sau để người kia kịp thấy và phản hồi ngắn.
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function GoalEditorCard({
+  data,
+  activeGoal,
+  bodyScheduledToday,
+  accent,
+}: {
+  data: DashboardData;
+  activeGoal: GoalTab;
+  bodyScheduledToday: boolean;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-[1.75rem] border border-black/8 p-4 sm:p-5" style={{ backgroundColor: `${accent}14` }}>
+      {activeGoal === "study" ? (
+        <form action={saveCheckinAction} className="flex flex-col gap-4">
+          <input type="hidden" name="category" value="study" />
+          <label className="block space-y-2 text-sm text-[var(--muted)]">
+            <span>Số phút học hôm nay</span>
+            <input
+              type="number"
+              min={0}
+              name="studyMinutes"
+              defaultValue={data.viewer.today?.study_minutes ?? ""}
+              className="w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </label>
+          <ProofUploadField
+            name="studyProof"
+            label="Ảnh bằng chứng"
+            buttonLabel="Tải ảnh proof"
+            accept={PROOF_INPUT_ACCEPT}
+            helper="Người kia xem được tới trưa mai"
+          />
+          <label className="block space-y-2 text-sm text-[var(--muted)]">
+            <span>Note ngắn</span>
+            <textarea
+              name="studyNote"
+              rows={3}
+              defaultValue={data.viewer.today?.study_note ?? ""}
+              className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </label>
+          <div className="pt-1">
+            <SaveButton label="Lưu study" fullWidth />
+          </div>
+        </form>
+      ) : null}
+
+      {activeGoal === "screen_time" ? (
+        <form action={saveCheckinAction} className="flex flex-col gap-4">
+          <input type="hidden" name="category" value="screen_time" />
+          <label className="block space-y-2 text-sm text-[var(--muted)]">
+            <span>Screen time hôm nay (phút)</span>
+            <input
+              type="number"
+              min={0}
+              name="screenTimeMinutes"
+              defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
+              className="w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </label>
+          <ProofUploadField
+            name="screenTimeProof"
+            label="Screenshot"
+            buttonLabel="Tải screenshot"
+            accept={PROOF_INPUT_ACCEPT}
+            helper="Không bắt buộc, vẫn sống tới trưa mai"
+          />
+          <label className="block space-y-2 text-sm text-[var(--muted)]">
+            <span>Note ngắn</span>
+            <textarea
+              name="screenTimeNote"
+              rows={3}
+              defaultValue={data.viewer.today?.screen_time_note ?? ""}
+              className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </label>
+          <div className="pt-1">
+            <SaveButton label="Lưu screen time" fullWidth />
+          </div>
+        </form>
+      ) : null}
+
+      {activeGoal === "body" ? (
+        <form action={saveCheckinAction} className="flex flex-col gap-4">
+          <input type="hidden" name="category" value="body" />
+          {bodyScheduledToday ? (
+            <>
+              <label className="flex min-h-[4.75rem] items-start gap-3 rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-[var(--foreground)]">
+                <input
+                  type="checkbox"
+                  name="bodyCompleted"
+                  defaultChecked={data.viewer.today?.body_completed ?? false}
+                  className="mt-1 size-4 shrink-0"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium leading-7">Hôm nay tôi đã bám đúng plan body của mình.</span>
+                  <span className="block text-sm leading-7 text-[var(--muted)]">
+                    Dùng cho gym, ăn uống hoặc recovery, tùy rule riêng của bạn.
+                  </span>
+                </span>
+              </label>
+              <ProofUploadField
+                name="bodyProof"
+                label="Ảnh bằng chứng"
+                buttonLabel="Tải ảnh proof"
+                accept={PROOF_INPUT_ACCEPT}
+                helper="Mục này cần proof để pass"
+              />
+            </>
+          ) : (
+            <div className="rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
+              Hôm nay không nằm trong lịch body của bạn. Mục này không chặn việc khóa ngày, nên bạn không cần cố điền cho đủ.
+            </div>
+          )}
+          <label className="block space-y-2 text-sm text-[var(--muted)]">
+            <span>Note ngắn</span>
+            <textarea
+              name="bodyNote"
+              rows={3}
+              defaultValue={data.viewer.today?.body_note ?? ""}
+              className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+          </label>
+          <div className="pt-1">
+            <SaveButton label="Lưu body" fullWidth />
+          </div>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function SubmitCard({ data }: { data: DashboardData }) {
+  return (
+    <section className="glass-card rounded-[2rem] p-5">
+      <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Khóa ngày</p>
+      <h2 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">{todayStageLabel(data.todayStage)}</h2>
+      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{data.todaySummary.nextStep}</p>
+
+      <form action={submitDayAction} className="mt-5">
+        <button
+          type="submit"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+        >
+          Khóa ngày hôm nay
+          <ArrowRight className="size-4" />
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function WeeklyPactCard({ data }: { data: DashboardData }) {
+  return (
+    <section className="glass-card rounded-[2rem] p-5">
+      <div className="flex items-center gap-2 text-[var(--foreground)]">
+        <TimerReset className="size-4" />
+        <h2 className="font-semibold">Pact tuần</h2>
+      </div>
+      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+        Đây là lớp nhẹ để hai người cùng phe. Nó không thay streak, chỉ giúp nhịp chung có cảm giác hơn.
+      </p>
+
+      <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
+        <label className="block space-y-2 text-sm text-[var(--muted)]">
+          <span>Preset</span>
+          <select
+            name="templateKey"
+            defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
+            className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          >
+            {WEEKLY_PACTS.map((pact) => (
+              <option key={pact.key} value={pact.key}>
+                {pact.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block space-y-2 text-sm text-[var(--muted)]">
+          <span>Note ngắn</span>
+          <textarea
+            name="note"
+            rows={3}
+            defaultValue={data.weeklyPact?.note ?? ""}
+            placeholder="Ví dụ: ai xong sớm thì chỉ nhắc người kia một câu ngắn"
+            className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+          />
+        </label>
+        <SaveButton label="Lưu pact tuần" subtle />
+      </form>
     </section>
   );
 }
 
 function ReviewTab({ data }: { data: DashboardData }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-      <div className="glass-card rounded-[2rem] p-5">
+    <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+      <section className="glass-card rounded-[2rem] p-5">
         <div className="flex items-center gap-2 text-[var(--foreground)]">
           <Sparkles className="size-4" />
           <h2 className="font-semibold">Weekly insight</h2>
         </div>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Daily recap đi theo rule. Weekly insight mới dùng AI, và chỉ nên nói ra pattern thật cùng vài thay đổi nhỏ cho tuần tới.
+        <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+          Review chỉ là lớp phụ. Nó nên nói ra pattern thật, không cướp spotlight của việc giữ nhịp hôm nay.
         </p>
-        <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/65 p-4">
+        <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/70 p-4">
           {data.weeklyInsight ? (
             <pre className="whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">{data.weeklyInsight.content}</pre>
           ) : (
-            <div className="space-y-2 text-sm leading-6 text-[var(--muted)]">
-              <p>Chưa có weekly insight lưu sẵn cho tuần này.</p>
+            <div className="space-y-2 text-sm leading-7 text-[var(--muted)]">
+              <p>Tuần này chưa có insight lưu sẵn.</p>
               <p>
-                Hiện tại {data.viewer.name} pass study {data.weeklyStats.viewer.studyPassDays}/7 ngày, screen time giữ được{" "}
-                {data.weeklyStats.viewer.screenWins}/7 ngày, body đạt {data.weeklyStats.viewer.bodyPassDays}/
-                {data.weeklyStats.viewer.bodyScheduledDays} ngày lên lịch.
+                {data.viewer.name}: study {data.weeklyStats.viewer.studyPassDays}/7, screen giữ được {data.weeklyStats.viewer.screenWins}/7,
+                body đạt {data.weeklyStats.viewer.bodyPassDays}/{data.weeklyStats.viewer.bodyScheduledDays}.
               </p>
+              {data.partner ? (
+                <p>
+                  {data.partner.name}: study {data.weeklyStats.partner?.studyPassDays ?? 0}/7, screen giữ được {data.weeklyStats.partner?.screenWins ?? 0}/7,
+                  body đạt {data.weeklyStats.partner?.bodyPassDays ?? 0}/{data.weeklyStats.partner?.bodyScheduledDays ?? 0}.
+                </p>
+              ) : null}
             </div>
           )}
         </div>
         <form action={refreshWeeklyInsightAction} className="mt-4">
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
           >
             Làm mới weekly insight
           </button>
         </form>
-      </div>
+      </section>
 
-      <div className="glass-card rounded-[2rem] p-5">
+      <section className="glass-card rounded-[2rem] p-5">
         <div className="flex items-center gap-2 text-[var(--foreground)]">
           <CheckCircle2 className="size-4" />
           <h2 className="font-semibold">7 ngày gần nhất</h2>
@@ -531,7 +718,7 @@ function ReviewTab({ data }: { data: DashboardData }) {
           {data.history.map((day) => (
             <div
               key={day.date}
-              className="grid gap-3 rounded-[1.5rem] border border-black/8 bg-white/65 px-4 py-3 text-sm sm:grid-cols-[0.9fr_1fr_1fr_1fr]"
+              className="grid gap-3 rounded-[1.5rem] border border-black/8 bg-white/68 px-4 py-3 text-sm sm:grid-cols-[0.9fr_1fr_1fr_0.9fr]"
             >
               <div>
                 <p className="font-semibold text-[var(--foreground)]">{day.label}</p>
@@ -543,17 +730,13 @@ function ReviewTab({ data }: { data: DashboardData }) {
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </section>
   );
 }
 
 function normalizeDashboardTab(value: string | undefined): DashboardTab {
-  if (value === "pair" || value === "review") {
-    return value;
-  }
-
-  return "today";
+  return value === "review" ? "review" : "today";
 }
 
 function normalizeGoalTab(value: string | undefined): GoalTab {
@@ -569,7 +752,7 @@ function dashboardTabHref(tab: DashboardTab, goal: GoalTab) {
     return goal === "study" ? "/" : `/?goal=${goal}`;
   }
 
-  return `/?tab=${tab}`;
+  return `/?tab=review`;
 }
 
 function goalTabHref(goal: GoalTab) {
@@ -580,8 +763,8 @@ function ConfigState() {
   return (
     <SimpleState
       eyebrow="Missing env"
-      title="App đã có đủ UI và flow, nhưng chưa có env runtime."
-      copy="Thêm Supabase URL + publishable key + service role key + Gemini key vào `.env.local`, rồi app sẽ bật ngay."
+      title="App đã có flow, nhưng thiếu env runtime."
+      copy="Thêm Supabase URL, publishable key, service role key và Gemini key vào `.env.local` để bật app."
     />
   );
 }
@@ -614,14 +797,14 @@ function GoalTabCard({
 }: {
   href: string;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   active: boolean;
 }) {
   return (
     <Link
       href={href}
       scroll={false}
-      className={`inline-flex items-center justify-center gap-2 rounded-[1rem] border px-3 py-3 text-sm font-medium transition ${
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-[1rem] border px-3 py-3 text-sm font-medium transition ${
         active
           ? "border-black/12 bg-white text-[var(--foreground)] shadow-[0_16px_32px_rgba(27,25,22,0.08)]"
           : "border-black/8 bg-white/62 hover:border-black/12 hover:bg-white/80"
@@ -633,68 +816,16 @@ function GoalTabCard({
   );
 }
 
-function CheckinCard({
-  title,
-  label,
-  target,
-  status,
-  partnerStatus,
-  viewerLabel,
-  partnerLabel,
-  accent,
-  icon: Icon,
-  children,
-}: {
-  category: GoalCategory;
-  title: string;
-  label: string;
-  target: string;
-  status: string;
-  partnerStatus: string;
-  viewerLabel: string;
-  partnerLabel: string | null;
-  accent: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex h-full flex-col rounded-[1.75rem] border border-black/8 bg-white/65 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="sm:min-h-[6.5rem]">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-            <Icon className="size-4" />
-            {title}
-          </div>
-          <h3 className="text-base font-semibold text-[var(--foreground)]">{label}</h3>
-          <p className="mt-1 text-sm text-[var(--muted)]">{target}</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:min-w-[12rem]">
-          <StatusPill label={viewerLabel} status={status} stretch />
-          {partnerLabel ? (
-            <StatusPill label={partnerLabel} status={partnerStatus} muted stretch />
-          ) : (
-            <div className="inline-flex min-h-11 items-center justify-between gap-3 rounded-full border border-dashed border-black/12 bg-white/72 px-3.5 py-2 text-xs font-medium text-[var(--muted)]">
-              <span className="truncate">Chờ đủ 2 người</span>
-              <span className="shrink-0">Chưa ghép</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="mt-4 flex-1 rounded-[1.5rem] border border-black/8 p-4 sm:p-5" style={{ backgroundColor: `${accent}12` }}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
 function SaveButton({ label, subtle = false, fullWidth = false }: { label: string; subtle?: boolean; fullWidth?: boolean }) {
+  const base = fullWidth ? "w-full justify-center" : "";
+
   return (
     <button
       type="submit"
       className={
         subtle
-          ? `${fullWidth ? "w-full justify-center" : ""} rounded-full border border-black/10 bg-white/85 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white`
-          : `${fullWidth ? "w-full justify-center" : ""} inline-flex items-center rounded-full bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90`
+          ? `${base} inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white/85 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white`
+          : `${base} inline-flex min-h-11 items-center rounded-full bg-[var(--foreground)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90`
       }
     >
       {label}
@@ -707,7 +838,7 @@ function StatPill({
   label,
   value,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
@@ -722,59 +853,49 @@ function StatPill({
   );
 }
 
-function PersonCard({
-  person,
-  row,
-  todayKey,
-  timezone,
-  current = false,
-}: {
-  person: PersonSummary;
-  row: DailyCheckinRow | null;
-  todayKey: string;
-  timezone: string;
-  current?: boolean;
-}) {
-  const bodyScheduledToday = getBodyScheduledDays(person.goals.body).includes(getWeekdayInTimezone(todayKey, timezone));
-  const dayStatus = row?.submitted_at ? row.personal_day_status : row ? "draft_live" : "waiting";
-
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.5rem] border border-black/8 bg-white/70 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-base font-semibold text-[var(--foreground)]">
-            {person.name} {current ? "· bạn" : ""}
-          </p>
-          <p className="text-sm text-[var(--muted)]">{getFocusLabel(person.focusMode)}</p>
-        </div>
-        <StatusPill label="Hôm nay" status={dayStatus} />
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-[var(--muted)]">
-        <MiniMetric label="Study" value={getGoalDisplayStatus({ row, category: "study", scheduledToday: true })} />
-        <MiniMetric
-          label="Screen"
-          value={getGoalDisplayStatus({ row, category: "screen_time", scheduledToday: true })}
-        />
-        <MiniMetric label="Body" value={getGoalDisplayStatus({ row, category: "body", scheduledToday: bodyScheduledToday })} />
-      </div>
-      <p className="mt-3 text-sm text-[var(--muted)]">Streak cá nhân: {person.streak} ngày</p>
+    <div className="rounded-[1.25rem] border border-black/8 bg-white/72 px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{label}</p>
+      <p className="mt-1 text-base font-semibold text-[var(--foreground)]">{value}</p>
+    </div>
+  );
+}
+
+function GoalProgressPill({ label, stage }: { label: string; stage: GoalStage }) {
+  return (
+    <div className={`rounded-[1.1rem] border px-3 py-3 text-center ${stageTone(stage, true)}`}>
+      <p className="text-xs uppercase tracking-[0.14em]">{label}</p>
+      <p className="mt-1 text-sm font-medium">{goalStageLabel(stage)}</p>
+    </div>
+  );
+}
+
+function StagePill({
+  label,
+  stage,
+  muted = false,
+  compact = false,
+}: {
+  label: string;
+  stage: GoalStage | DayLane["dayStage"];
+  muted?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-full ${compact ? "px-3 py-1.5" : "px-4 py-2"} text-sm font-medium ${stageTone(stage, muted)}`}
+    >
+      <span>{label}</span>
+      <span className="shrink-0">{stageLabel(stage)}</span>
     </div>
   );
 }
 
 function WaitingPartnerCard() {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-black/12 bg-white/60 p-4 text-sm leading-6 text-[var(--muted)]">
-      Người còn lại chưa vào app hoặc chưa setup xong. Khi đủ 2 người, card này sẽ biến thành bảng trạng thái chờ nhau theo ngày.
-    </div>
-  );
-}
-
-function MiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-black/8 bg-white/75 px-3 py-2 text-center">
-      <p className="font-medium text-[var(--foreground)]">{label}</p>
-      <p className="mt-1">{statusLabel(value)}</p>
+    <div className="rounded-[1.5rem] border border-dashed border-black/12 bg-white/60 p-4 text-sm leading-7 text-[var(--muted)]">
+      Người còn lại chưa vào app hoặc chưa setup xong. Khi đủ 2 người, chỗ này sẽ thành lane để nhìn đúng họ đang ở đâu trong ngày.
     </div>
   );
 }
@@ -784,177 +905,121 @@ function HistoryBadge({ label, status, shared = false }: { label: string; status
     <div className="rounded-2xl border border-black/8 bg-white/75 px-3 py-2">
       <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{label}</p>
       <p className={`mt-1 text-sm font-medium ${shared ? "text-[var(--foreground)]" : "text-[var(--foreground)]"}`}>
-        {statusLabel(status)}
+        {historyStatusLabel(status)}
       </p>
     </div>
   );
 }
 
-function getGoalDisplayStatus({
-  row,
-  category,
-  scheduledToday,
-  partnerMissing = false,
-}: {
-  row: DailyCheckinRow | null;
-  category: GoalCategory;
-  scheduledToday: boolean;
-  partnerMissing?: boolean;
-}) {
-  if (partnerMissing) {
-    return "waiting";
-  }
-
-  if (!scheduledToday) {
-    return "na";
-  }
-
-  const rawStatus = getRawGoalStatus(row, category);
-
-  if (row?.submitted_at) {
-    return rawStatus;
-  }
-
-  if (!hasGoalDraftContent(row, category)) {
-    return "unsaved";
-  }
-
-  if (rawStatus === "pass") {
-    return "ready";
-  }
-
-  if (rawStatus === "fail") {
-    return "needs_work";
-  }
-
-  return "saved";
+function stageLabel(stage: GoalStage | DayLane["dayStage"]) {
+  if (stage === "shared_pass") return "Qua ngày";
+  if (stage === "protected_by_grace") return "Grace giữ";
+  if (stage === "submitted_waiting_partner") return "Đã khóa";
+  if (stage === "ready_to_submit") return "Sẵn khóa";
+  if (stage === "missed") return "Hụt";
+  if (stage === "waiting") return "Đang chờ";
+  if (stage === "drafting") return "Đang làm";
+  return goalStageLabel(stage as GoalStage);
 }
 
-function getRawGoalStatus(row: DailyCheckinRow | null, category: GoalCategory) {
-  if (!row) {
-    return "pending";
-  }
-
-  if (category === "study") return row.study_status;
-  if (category === "screen_time") return row.screen_time_status;
-  return row.body_status;
+function goalStageLabel(stage: GoalStage) {
+  if (stage === "locked") return "Đã khóa";
+  if (stage === "ready") return "Đủ để khóa";
+  if (stage === "needs_fix") return "Còn thiếu";
+  if (stage === "in_progress") return "Đang làm";
+  if (stage === "na") return "N/A";
+  if (stage === "missed") return "Trượt";
+  return "Chưa làm";
 }
 
-function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory) {
-  if (!row) {
-    return false;
-  }
-
-  if (category === "study") {
-    return (
-      typeof row.study_minutes === "number" ||
-      Boolean(row.study_note) ||
-      Boolean(row.study_proof_path || row.study_had_proof)
-    );
-  }
-
-  if (category === "screen_time") {
-    return (
-      typeof row.screen_time_minutes === "number" ||
-      Boolean(row.screen_time_note) ||
-      Boolean(row.screen_time_proof_path || row.screen_time_had_proof)
-    );
-  }
-
-  return Boolean(row.body_completed || row.body_note || row.body_proof_path || row.body_had_proof);
-}
-
-function StatusPill({
-  label,
-  status,
-  muted = false,
-  stretch = false,
-}: {
-  label: string;
-  status: string;
-  muted?: boolean;
-  stretch?: boolean;
-}) {
-  const tone = statusTone(status, muted);
-
-  return (
-    <div
-      className={`${stretch ? "flex min-h-11 w-full justify-between gap-3 px-3.5 py-2" : "inline-flex gap-2 px-3 py-1.5"} items-center rounded-full text-xs font-medium ${tone}`}
-    >
-      <span className="truncate">{label}</span>
-      <span className="shrink-0">{statusLabel(status)}</span>
-    </div>
-  );
-}
-
-function statusLabel(status: string) {
-  if (status === "pass" || status === "shared_pass") return "Pass";
-  if (status === "fail" || status === "shared_fail") return "Trượt";
-  if (status === "protected" || status === "grace_protected") return "Grace giữ";
-  if (status === "ready") return "Sẵn khóa";
-  if (status === "saved") return "Đã lưu";
-  if (status === "needs_work") return "Còn thiếu";
-  if (status === "na") return "N/A";
-  if (status === "unsaved") return "Chưa lưu";
-  if (status === "waiting" || status === "waiting_for_partner") return "Đang chờ";
-  if (status === "waiting_for_you") return "Tới lượt bạn";
-  if (status === "draft_live") return "Chưa khóa";
-  if (status === "draft") return "Draft";
-  if (status === "idle" || status === "missing") return "Chưa có";
-  return "Pending";
-}
-
-function todayStateLabel(state: DashboardData["todayState"], partnerName?: string | null) {
-  if (state === "shared_pass") return "Cả hai đều qua";
-  if (state === "waiting_for_partner") return "Bạn xong rồi";
-  if (state === "waiting_for_you") return partnerName ? `${partnerName} đang chờ` : "Người còn lại đang chờ";
-  if (state === "grace_protected") return "Được grace giữ";
-  if (state === "shared_fail") return "Hôm nay hụt";
-  return "Chưa khóa ngày";
-}
-
-function statusTone(status: string, muted: boolean) {
-  if (status === "pass" || status === "shared_pass") {
+function stageTone(stage: GoalStage | DayLane["dayStage"], muted: boolean) {
+  if (stage === "shared_pass" || stage === "locked") {
     return muted
-      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-      : "border border-emerald-200 bg-emerald-100 text-emerald-800";
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-emerald-200 bg-emerald-100 text-emerald-800";
   }
 
-  if (status === "fail" || status === "shared_fail") {
+  if (stage === "protected_by_grace") {
     return muted
-      ? "border border-rose-200 bg-rose-50 text-rose-700"
-      : "border border-rose-200 bg-rose-100 text-rose-800";
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : "border-amber-200 bg-amber-100 text-amber-800";
   }
 
-  if (status === "protected" || status === "grace_protected") {
+  if (stage === "ready_to_submit" || stage === "ready") {
     return muted
-      ? "border border-amber-200 bg-amber-50 text-amber-700"
-      : "border border-amber-200 bg-amber-100 text-amber-800";
+      ? "border-teal-200 bg-teal-50 text-teal-700"
+      : "border-teal-200 bg-teal-100 text-teal-800";
   }
 
-  if (status === "ready") {
+  if (stage === "submitted_waiting_partner") {
     return muted
-      ? "border border-teal-200 bg-teal-50 text-teal-700"
-      : "border border-teal-200 bg-teal-100 text-teal-800";
+      ? "border-sky-200 bg-sky-50 text-sky-700"
+      : "border-sky-200 bg-sky-100 text-sky-800";
   }
 
-  if (status === "saved" || status === "draft_live") {
+  if (stage === "needs_fix" || stage === "missed") {
     return muted
-      ? "border border-sky-200 bg-sky-50 text-sky-700"
-      : "border border-sky-200 bg-sky-100 text-sky-800";
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : "border-rose-200 bg-rose-100 text-rose-800";
   }
 
-  if (status === "needs_work") {
-    return muted
-      ? "border border-amber-200 bg-amber-50 text-amber-700"
-      : "border border-amber-200 bg-amber-100 text-amber-800";
-  }
-
-  if (status === "na") {
-    return "border border-slate-200 bg-slate-50 text-slate-700";
+  if (stage === "na") {
+    return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
   return muted
-    ? "border border-black/8 bg-white/75 text-[var(--muted)]"
-    : "border border-black/8 bg-white/90 text-[var(--foreground)]";
+    ? "border-black/8 bg-white/75 text-[var(--muted)]"
+    : "border-black/8 bg-white/90 text-[var(--foreground)]";
+}
+
+function todayStageLabel(stage: TodayStage) {
+  if (stage === "shared_pass") return "Cả hai qua ngày";
+  if (stage === "protected_by_grace") return "Grace đang giữ";
+  if (stage === "submitted_waiting_partner") return "Bạn đang chờ";
+  if (stage === "ready_to_submit") return "Đủ để khóa";
+  if (stage === "missed") return "Hôm nay hụt";
+  return "Ngày vẫn đang mở";
+}
+
+function historyStatusLabel(status: string) {
+  if (status === "pass") return "Pass";
+  if (status === "fail") return "Trượt";
+  if (status === "protected") return "Grace giữ";
+  if (status === "waiting") return "Đang chờ";
+  if (status === "missing" || status === "idle") return "Chưa có";
+  return "Draft";
+}
+
+function goalTabLabel(goal: GoalCategory) {
+  if (goal === "study") return "Study";
+  if (goal === "screen_time") return "Screen time";
+  return "Body";
+}
+
+function formatCategoryList(categories: GoalCategory[]) {
+  if (categories.length === 0) {
+    return "phần cuối cùng";
+  }
+
+  return categories
+    .map((category) => {
+      if (category === "study") return "study";
+      if (category === "screen_time") return "screen time";
+      return "body";
+    })
+    .join(", ");
+}
+
+function formatProofDeadline(expiresAt: string, timezone: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timezone,
+  }).format(new Date(expiresAt));
+}
+
+function reactionLabel(key: VisibleProof["viewerReaction"] | string) {
+  return PROOF_REACTION_OPTIONS.find((option) => option.key === key)?.label ?? key;
 }

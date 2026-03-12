@@ -1,7 +1,6 @@
 import {
   addDays,
   eachDayOfInterval,
-  endOfDay,
   format,
   startOfWeek,
   subDays,
@@ -23,8 +22,8 @@ export function getDateLabel(dateKey: string, timezone: string) {
 }
 
 export function getExpiryForDate(dateKey: string, timezone: string) {
-  const end = endOfDay(addDays(new Date(`${dateKey}T00:00:00`), 1));
-  return fromZonedTime(end, timezone).toISOString();
+  const visibleUntil = `${format(addDays(new Date(`${dateKey}T00:00:00`), 1), "yyyy-MM-dd")}T12:00:00`;
+  return fromZonedTime(visibleUntil, timezone).toISOString();
 }
 
 export function listDateKeysDescending(timezone: string, length: number) {

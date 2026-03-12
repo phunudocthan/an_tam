@@ -16,7 +16,7 @@ export function LoginForm({ legacyMessage }: { legacyMessage: string | null }) {
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Đăng nhập</p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--foreground)]">Vào app</h2>
-        <p className="mt-2 text-sm leading-7 text-[var(--muted)]">Mỗi người dùng một mật khẩu riêng.</p>
+        <p className="mt-2 text-sm leading-7 text-[var(--muted)]">Nhập đúng mật khẩu riêng của bạn.</p>
       </div>
 
       <form action={formAction} className="space-y-4">
@@ -38,7 +38,7 @@ export function LoginForm({ legacyMessage }: { legacyMessage: string | null }) {
             type="password"
             name="password"
             autoComplete="current-password"
-            placeholder="Nhập mật khẩu cố định"
+            placeholder="Nhập mật khẩu"
             className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3.5 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
           />
         </label>

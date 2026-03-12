@@ -43,7 +43,7 @@ export function ProofUploadField({
 
       <label
         htmlFor={inputId}
-        className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm transition hover:border-black/15 hover:bg-white"
+        className="flex min-h-[4.25rem] cursor-pointer items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm transition hover:border-black/15 hover:bg-white"
       >
         <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--foreground)] px-3.5 py-2 text-sm font-semibold text-white">
           <ImageUp className="size-4" />

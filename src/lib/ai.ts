@@ -35,7 +35,7 @@ export async function generateWeeklyInsight(data: DashboardData) {
     `- Body style: ${getBodyRuleLabel(data.partner.goals.body)}`,
     "",
     `Shared streak hiện tại: ${data.sharedStreak}`,
-    `Tình trạng hôm nay: ${data.todayState}`,
+    `Tình trạng hôm nay: ${data.todayStage}`,
     `Pact tuần: ${data.weeklyPact?.title ?? "Chưa chọn"}`,
     "",
     "Giữ câu ngắn, cụ thể, không viết những câu kiểu 'hãy tiếp tục cố gắng'.",

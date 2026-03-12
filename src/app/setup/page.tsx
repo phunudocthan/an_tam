@@ -28,10 +28,9 @@ export default async function SetupPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Setup</p>
-          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Khóa nhịp riêng của bạn trước.</h1>
+          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt rule riêng của bạn trước.</h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)]">
-            Ở An Tam, mỗi người có rule riêng. Bulk hay cut đều được, miễn là khi bước vào ngày mới, hai người vẫn cảm thấy
-            đang đi cùng nhau.
+            Mỗi người có target riêng, nhưng app chỉ có ý nghĩa khi hai người vẫn giữ được cùng một nhịp trong ngày.
           </p>
         </div>
 
@@ -110,7 +109,7 @@ export default async function SetupPage() {
               </label>
 
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Label cho body card</span>
+                <span>Tên mục body</span>
                 <input
                   required
                   name="bodyLabel"

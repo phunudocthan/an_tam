@@ -1,11 +1,6 @@
-import {
-  APP_NAME,
-  DEFAULT_GOAL_PRESET,
-  PAIR_CAPACITY,
-  WEEKDAY_OPTIONS,
-} from "@/lib/constants";
+import { DEFAULT_GOAL_PRESET, GOAL_CATEGORIES, PAIR_CAPACITY, PROOF_BUCKET, WEEKDAY_OPTIONS } from "@/lib/constants";
 import { getSessionUser, type AuthUser } from "@/lib/auth";
-import { getDateLabel, getTodayKey, getWeekRange, getWeekdayInTimezone, listDateKeysDescending } from "@/lib/date";
+import { getDateLabel, getExpiryForDate, getTodayKey, getWeekRange, getWeekdayInTimezone, listDateKeysDescending } from "@/lib/date";
 import { getPairTimezone, hasSupabaseEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
@@ -14,14 +9,19 @@ import type {
   BodyRuleType,
   DailyCheckinRow,
   DashboardData,
+  DayLane,
   GoalCategory,
   GoalConfigMap,
   GoalConfigRow,
+  GoalStage,
   HistoryDay,
   PairMemberRow,
   PairRow,
   PersonSummary,
   ProfileRow,
+  ProofReactionRow,
+  TodayStage,
+  VisibleProof,
   WeeklyPactRow,
   WeeklyStats,
 } from "@/lib/types";
@@ -38,6 +38,17 @@ type DailyEvaluation = {
   screenTimeStatus: DailyCheckinRow["screen_time_status"];
   bodyStatus: DailyCheckinRow["body_status"];
   personalStatus: DailyCheckinRow["personal_day_status"];
+};
+
+type ProofSource = {
+  checkinId: string;
+  pairId: string;
+  ownerUserId: string;
+  ownerName: string;
+  category: GoalCategory;
+  path: string;
+  note: string | null;
+  expiresAt: string;
 };
 
 export async function requireUser() {
@@ -85,12 +96,11 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
     admin.from("goal_configs").select("*").eq("pair_id", pair.id).order("created_at", { ascending: true }),
   ]);
 
-  const membershipRows = (members as PairMemberRow[] | null) ?? [];
-
   if (membersError || goalsError) {
     throw new Error(membersError?.message ?? goalsError?.message ?? "Failed to load pair.");
   }
 
+  const membershipRows = (members as PairMemberRow[] | null) ?? [];
   const isMember = membershipRows.some((member) => member.user_id === user.id);
 
   if (!isMember && membershipRows.length >= PAIR_CAPACITY) {
@@ -157,6 +167,7 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
   const profileRows = (pairProfiles as ProfileRow[] | null) ?? [];
   const goalRows = (goals as GoalConfigRow[] | null) ?? [];
   const checkinRows = (checkins as DailyCheckinRow[] | null) ?? [];
+  const profileNames = new Map(profileRows.map((item) => [item.id, item.display_name || item.email]));
 
   const viewerProfile = profileRows.find((item) => item.id === user.id);
   const partnerProfile = profileRows.find((item) => item.id !== user.id) ?? null;
@@ -180,7 +191,7 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
     ? {
         userId: partnerProfile.id,
         email: partnerProfile.email,
-        name: partnerProfile.display_name || "Người kia",
+        name: partnerProfile.display_name || "Người còn lại",
         focusMode: partnerProfile.focus_mode ?? null,
         goals: partnerGoals,
         today: partnerToday,
@@ -189,12 +200,31 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
     : null;
 
   const shared = computeSharedStreak(checkinRows, membershipRows, timezone);
+  const baseViewerLane = buildDayLane(viewer, viewerToday, todayKey, timezone);
+  const basePartnerLane = partner ? buildDayLane(partner, partnerToday, todayKey, timezone) : null;
+  const todayStage = deriveTodayStage({
+    viewerLane: baseViewerLane,
+    partnerLane: basePartnerLane,
+    protectedDates: shared.protectedDates,
+    todayKey,
+  });
+  const viewerLane = syncLaneWithTodayStage(baseViewerLane, todayStage);
+  const partnerLane = basePartnerLane ? syncLaneWithTodayStage(basePartnerLane, todayStage) : null;
+
   const weeklyStats = {
     viewer: computeWeeklyStats(checkinRows, user.id, viewerGoals, timezone),
     partner: partner ? computeWeeklyStats(checkinRows, partner.userId, partnerGoals, timezone) : null,
   };
 
-  const todayState = deriveTodayState(viewerToday, partnerToday, shared.protectedDates);
+  const visibleProofs = await buildVisibleProofs({
+    admin,
+    rows: checkinRows,
+    viewer,
+    partner,
+    profileNames,
+    now: new Date(),
+    timezone,
+  });
 
   return {
     kind: "ready",
@@ -208,11 +238,20 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
       sharedStreak: shared.streak,
       sharedGraceProtectedDates: shared.protectedDates,
       weeklyPact: (weeklyPacts as WeeklyPactRow | null) ?? null,
-      dailyRecap: buildDailyRecap({ partner, todayState, sharedStreak: shared.streak }),
+      todayStage,
+      todaySummary: buildTodaySummary({
+        partner,
+        viewerLane,
+        partnerLane,
+        todayStage,
+        sharedStreak: shared.streak,
+      }),
+      viewerLane,
+      partnerLane,
+      visibleProofs,
       weeklyInsight: (reviews as AiReviewRow | null) ?? null,
       weeklyStats,
       history: buildHistory(checkinRows, viewer, partner, timezone, shared.protectedDates),
-      todayState,
     },
   };
 }
@@ -330,8 +369,21 @@ export function getTargetText(goal: GoalConfigRow | null, category: GoalCategory
     return `<= ${goal?.target_value ?? DEFAULT_GOAL_PRESET.screenTimeMinutes} phút`;
   }
 
-  const days = getBodyScheduledDays(goal);
-  return `${getGoalLabel(goal, "body")} · ${days.length} ngày/tuần`;
+  return `${getBodyRuleLabel(goal)} · ${getBodyScheduledDays(goal).length} ngày/tuần`;
+}
+
+export function getFocusLabel(mode: BodyFocus | null) {
+  if (mode === "gain") return "Tăng cân";
+  if (mode === "cut") return "Giảm cân";
+  return "Body goal";
+}
+
+export function getBodyRuleLabel(goal: GoalConfigRow | null) {
+  const rule = getBodyRuleType(goal);
+
+  if (rule === "nutrition") return "Ăn uống";
+  if (rule === "recovery") return "Recovery";
+  return "Gym";
 }
 
 function buildGoalMap(goalRows: GoalConfigRow[], userId: string): GoalConfigMap {
@@ -344,27 +396,150 @@ function buildGoalMap(goalRows: GoalConfigRow[], userId: string): GoalConfigMap 
   };
 }
 
-function deriveTodayState(
-  viewerToday: DailyCheckinRow | null,
-  partnerToday: DailyCheckinRow | null,
-  protectedDates: string[],
-): DashboardData["todayState"] {
-  const todayKey = viewerToday?.entry_date ?? partnerToday?.entry_date;
-  const protectedToday = todayKey ? protectedDates.includes(todayKey) : false;
+function buildDayLane(person: PersonSummary, row: DailyCheckinRow | null, todayKey: string, timezone: string): DayLane {
+  const goalStages = {
+    study: deriveGoalStage(row, "study", true),
+    screen_time: deriveGoalStage(row, "screen_time", true),
+    body: deriveGoalStage(
+      row,
+      "body",
+      getBodyScheduledDays(person.goals.body).includes(getWeekdayInTimezone(todayKey, timezone)),
+    ),
+  } satisfies DayLane["goalStages"];
 
-  if (!viewerToday?.submitted_at && partnerToday?.submitted_at) return "waiting_for_you";
-  if (!viewerToday?.submitted_at) return "draft";
-  if (!partnerToday?.submitted_at) return "waiting_for_partner";
-  if (viewerToday.personal_day_status === "pass" && partnerToday.personal_day_status === "pass") return "shared_pass";
-  if (protectedToday) return "grace_protected";
-  return "shared_fail";
+  const readyCount = GOAL_CATEGORIES.filter((category) => {
+    const stage = goalStages[category];
+    return stage === "ready" || stage === "locked" || stage === "na";
+  }).length;
+
+  const lockedCount = GOAL_CATEGORIES.filter((category) => {
+    const stage = goalStages[category];
+    return stage === "locked" || stage === "na";
+  }).length;
+
+  const missingCategories = GOAL_CATEGORIES.filter((category) => {
+    const stage = goalStages[category];
+    return stage === "not_started" || stage === "in_progress" || stage === "needs_fix" || stage === "missed";
+  });
+
+  return {
+    userId: person.userId,
+    name: person.name,
+    focusMode: person.focusMode,
+    streak: person.streak,
+    dayStage: derivePersonDayStage(row, goalStages),
+    submitted: Boolean(row?.submitted_at),
+    submittedAt: row?.submitted_at ?? null,
+    personalStatus: row?.submitted_at ? row.personal_day_status : "waiting",
+    goalStages,
+    readyCount,
+    lockedCount,
+    missingCategories,
+  };
+}
+
+function deriveGoalStage(row: DailyCheckinRow | null, category: GoalCategory, scheduledToday: boolean): GoalStage {
+  if (!scheduledToday) {
+    return "na";
+  }
+
+  const rawStatus = getRawGoalStatus(row, category);
+
+  if (row?.submitted_at) {
+    if (rawStatus === "pass") return "locked";
+    if (rawStatus === "na") return "na";
+    return "missed";
+  }
+
+  if (!hasGoalDraftContent(row, category)) {
+    return "not_started";
+  }
+
+  if (rawStatus === "pass") {
+    return "ready";
+  }
+
+  if (rawStatus === "fail") {
+    return "needs_fix";
+  }
+
+  return "in_progress";
+}
+
+function derivePersonDayStage(
+  row: DailyCheckinRow | null,
+  goalStages: Record<GoalCategory, GoalStage>,
+): TodayStage | "waiting" {
+  if (!row) {
+    return "drafting";
+  }
+
+  if (!row.submitted_at) {
+    const readyToSubmit = GOAL_CATEGORIES.every((category) => {
+      const stage = goalStages[category];
+      return stage === "ready" || stage === "na";
+    });
+
+    return readyToSubmit ? "ready_to_submit" : "drafting";
+  }
+
+  if (row.personal_day_status === "pass") {
+    return "submitted_waiting_partner";
+  }
+
+  return "missed";
+}
+
+function deriveTodayStage({
+  viewerLane,
+  partnerLane,
+  protectedDates,
+  todayKey,
+}: {
+  viewerLane: DayLane;
+  partnerLane: DayLane | null;
+  protectedDates: string[];
+  todayKey: string;
+}): TodayStage {
+  if (!viewerLane.submitted) {
+    return viewerLane.dayStage === "ready_to_submit" ? "ready_to_submit" : "drafting";
+  }
+
+  if (!partnerLane?.submitted) {
+    return "submitted_waiting_partner";
+  }
+
+  if (viewerLane.personalStatus === "pass" && partnerLane.personalStatus === "pass") {
+    return "shared_pass";
+  }
+
+  if (protectedDates.includes(todayKey)) {
+    return "protected_by_grace";
+  }
+
+  return "missed";
+}
+
+function syncLaneWithTodayStage(lane: DayLane, todayStage: TodayStage): DayLane {
+  if (!lane.submitted) {
+    return lane;
+  }
+
+  if (todayStage === "shared_pass" || todayStage === "protected_by_grace" || todayStage === "missed") {
+    return {
+      ...lane,
+      dayStage: todayStage,
+    };
+  }
+
+  return {
+    ...lane,
+    dayStage: "submitted_waiting_partner",
+  };
 }
 
 function computePersonalStreak(rows: DailyCheckinRow[], userId: string, timezone: string) {
-  const byDate = new Map(
-    rows.filter((row) => row.user_id === userId).map((row) => [row.entry_date, row]),
-  );
-
+  const byDate = new Map(rows.filter((row) => row.user_id === userId).map((row) => [row.entry_date, row]));
   let streak = 0;
   const dateKeys = listDateKeysDescending(timezone, 60);
   const todayKey = getTodayKey(timezone);
@@ -508,56 +683,312 @@ function computeWeeklyStats(
   };
 }
 
-function buildDailyRecap({
+async function buildVisibleProofs({
+  admin,
+  rows,
+  viewer,
   partner,
-  todayState,
+  profileNames,
+  now,
+  timezone,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  rows: DailyCheckinRow[];
+  viewer: PersonSummary;
+  partner: PersonSummary | null;
+  profileNames: Map<string, string>;
+  now: Date;
+  timezone: string;
+}): Promise<VisibleProof[]> {
+  const visibleSources: ProofSource[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const row of rows) {
+    for (const category of GOAL_CATEGORIES) {
+      const proofMeta = getProofMeta(row, category);
+
+      if (!proofMeta.path || !proofMeta.expiresAt) {
+        continue;
+      }
+
+      const visibleUntil = normalizeProofExpiry(row.entry_date, timezone, proofMeta.expiresAt);
+
+      if (!visibleUntil || new Date(visibleUntil).getTime() <= now.getTime()) {
+        continue;
+      }
+
+      const dedupeKey = `${row.user_id}:${category}`;
+
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+
+      seenKeys.add(dedupeKey);
+      visibleSources.push({
+        checkinId: row.id,
+        pairId: row.pair_id,
+        ownerUserId: row.user_id,
+        ownerName:
+          row.user_id === viewer.userId
+            ? viewer.name
+            : row.user_id === partner?.userId
+              ? partner.name
+              : profileNames.get(row.user_id) ?? "Người còn lại",
+        category,
+        path: proofMeta.path,
+        note: proofMeta.note,
+        expiresAt: visibleUntil,
+      });
+    }
+  }
+
+  if (visibleSources.length === 0) {
+    return [];
+  }
+
+  let reactionRows: ProofReactionRow[] = [];
+  const { data: reactions, error: reactionsError } = await admin
+    .from("proof_reactions")
+    .select("*")
+    .in(
+      "checkin_id",
+      [...new Set(visibleSources.map((item) => item.checkinId))],
+    );
+
+  if (reactionsError && !looksLikeMissingSchema(reactionsError.message)) {
+    throw new Error(reactionsError.message);
+  }
+
+  if (!reactionsError) {
+    reactionRows = (reactions as ProofReactionRow[] | null) ?? [];
+  }
+
+  const proofs = await Promise.all(
+    visibleSources.map(async (source) => {
+      const { data, error } = await admin.storage.from(PROOF_BUCKET).createSignedUrl(source.path, 60 * 15);
+
+      if (error || !data?.signedUrl) {
+        return null;
+      }
+
+      const reactionsForProof = reactionRows
+        .filter((reaction) => reaction.checkin_id === source.checkinId && reaction.category === source.category)
+        .map((reaction) => ({
+          reactorUserId: reaction.reactor_user_id,
+          reactorName: profileNames.get(reaction.reactor_user_id) ?? "Partner",
+          reactionKey: reaction.reaction_key,
+        }));
+
+      return {
+        checkinId: source.checkinId,
+        pairId: source.pairId,
+        ownerUserId: source.ownerUserId,
+        ownerName: source.ownerName,
+        category: source.category,
+        imageUrl: data.signedUrl,
+        note: source.note,
+        expiresAt: source.expiresAt,
+        isViewerProof: source.ownerUserId === viewer.userId,
+        seenByPartner: reactionsForProof.some((reaction) => reaction.reactorUserId !== source.ownerUserId),
+        reactions: reactionsForProof,
+        viewerReaction:
+          source.ownerUserId === viewer.userId
+            ? null
+            : reactionsForProof.find((reaction) => reaction.reactorUserId === viewer.userId)?.reactionKey ?? null,
+      } satisfies VisibleProof;
+    }),
+  );
+
+  return proofs
+    .filter((item): item is VisibleProof => Boolean(item))
+    .sort((left, right) => {
+      if (left.isViewerProof !== right.isViewerProof) {
+        return Number(left.isViewerProof) - Number(right.isViewerProof);
+      }
+
+      return right.expiresAt.localeCompare(left.expiresAt);
+    });
+}
+
+function buildTodaySummary({
+  partner,
+  viewerLane,
+  partnerLane,
+  todayStage,
   sharedStreak,
 }: {
   partner: PersonSummary | null;
-  todayState: DashboardData["todayState"];
+  viewerLane: DayLane;
+  partnerLane: DayLane | null;
+  todayStage: TodayStage;
   sharedStreak: number;
-}) {
-  if (!partner) {
-    return "Bạn đã vào app rồi. Khi người kia setup xong, streak chung sẽ bắt đầu chạy và cảm giác chờ nhau mới bật lên.";
+}): DashboardData["todaySummary"] {
+  if (!partner || !partnerLane) {
+    return {
+      eyebrow: "Today",
+      title: "Bạn đã vào nhịp trước.",
+      copy: "An Tam chỉ thật sự có ý nghĩa khi đủ 2 người. Hiện bạn có thể set rule riêng trước để hôm nào người còn lại vào thì nhịp chung bật ngay.",
+      nextStep: "Giữ setup của bạn gọn và dùng Today như bản nháp chờ đủ hai người.",
+    };
   }
 
-  if (todayState === "waiting_for_you") {
-    return `${partner.name} đã khóa ngày trước. Bạn chỉ còn thiếu bước chốt nốt phần mình để nối lại nhịp chung.`;
+  if (todayStage === "shared_pass") {
+    return {
+      eyebrow: "Hôm nay qua ngày",
+      title: "Cả hai đều chốt xong và qua ngày.",
+      copy: `Shared streak đang ở ${sharedStreak} ngày. Proof vẫn còn ở đây tới trưa mai để hai người kịp nhìn thấy nhau.`,
+      nextStep: "Chỉ cần xem proof còn lại và để ngày mới tự mở ra.",
+    };
   }
 
-  if (todayState === "waiting_for_partner") {
-    return `Bạn đã khóa ngày. Giờ còn chờ ${partner.name} chốt nốt để biết streak chung có đi tiếp không.`;
+  if (todayStage === "protected_by_grace") {
+    return {
+      eyebrow: "Grace đang giữ nhịp",
+      title: "Hôm nay vẫn được giữ, nhưng không sạch.",
+      copy: "Cả hai đã khóa ngày rồi. Có chỗ hụt, nhưng grace đang gánh hộ một lần để nhịp chưa gãy ngay.",
+      nextStep: `Ngày mai sửa đúng ${formatMissingCategories(viewerLane.missingCategories)} hoặc phần hụt của ${partner.name}.`,
+    };
   }
 
-  if (todayState === "shared_pass") {
-    return `Hôm nay cả hai đều qua ngày. Streak chung đang ở ${sharedStreak} ngày và cảm giác đồng hành vẫn còn nguyên nhịp.`;
+  if (todayStage === "missed") {
+    return {
+      eyebrow: "Nhịp hôm nay bị hụt",
+      title: "Cả hai đã vào đủ, nhưng hôm nay không qua.",
+      copy: "Đây không phải chỗ để siết thêm áp lực. Chỉ cần nhìn đúng mục làm gãy ngày hôm nay là gì.",
+      nextStep: `Xem lại ${formatMissingCategories(viewerLane.missingCategories)} và proof/nghi chú còn sống để sửa ma sát cho ngày mai.`,
+    };
   }
 
-  if (todayState === "grace_protected") {
-    return "Hôm nay chưa sạch để tính là một ngày đẹp, nhưng streak chung vẫn được giữ nhờ 1 grace. Đây là lúc nên chỉnh lại ma sát nhỏ cho ngày mai.";
+  if (todayStage === "submitted_waiting_partner") {
+    return {
+      eyebrow: "Bạn xong phần mình rồi",
+      title: `${partner.name} vẫn còn ở trong ngày.`,
+      copy: buildWaitingCopy(partnerLane, partner.name),
+      nextStep: partnerLane.dayStage === "ready_to_submit" ? `${partner.name} chỉ còn bấm khóa ngày.` : `Chờ ${partner.name} chốt nốt ${formatMissingCategories(partnerLane.missingCategories)}.`,
+    };
   }
 
-  if (todayState === "shared_fail") {
-    return "Cả hai đều đã vào app nhưng hôm nay chưa đủ chuẩn để kéo streak chung đi tiếp. Cần sửa chỗ gãy cụ thể chứ không cần siết thêm áp lực.";
+  if (todayStage === "ready_to_submit") {
+    return {
+      eyebrow: partnerLane.submitted ? `${partner.name} đang chờ` : "Bạn đã đủ để khóa ngày",
+      title: partnerLane.submitted ? `${partner.name} đã khóa ngày trước rồi.` : "Phần của bạn đã đủ điều kiện.",
+      copy:
+        partnerLane.submitted
+          ? "Bạn không cần làm thêm nữa. Chỉ cần khóa ngày để chuyển từ làm một mình sang đúng trạng thái chờ nhau."
+          : `${partner.name} đang ở trạng thái ${laneStageLabel(partnerLane.dayStage).toLowerCase()}. Nếu bạn khóa sớm, nhịp chờ nhau sẽ rõ hơn.`,
+      nextStep: "Bấm Khóa ngày hôm nay.",
+    };
   }
 
-  return `Hôm nay vẫn đang ở trạng thái draft. Chỉ cần chốt từng mục rồi submit, app sẽ chuyển sang cảm giác chờ nhau mà ${APP_NAME} được xây để tạo ra.`;
+  return {
+    eyebrow: partnerLane.submitted ? `${partner.name} đang đợi` : "Hôm nay còn dang dở",
+    title: partnerLane.submitted ? `${partner.name} đã xong, còn bạn chưa xong.` : "Ngày hôm nay vẫn đang mở.",
+    copy: partnerLane.submitted
+      ? `Bạn còn thiếu ${formatMissingCategories(viewerLane.missingCategories)} trước khi hai người bước vào waiting state thật sự.`
+      : `Bạn còn thiếu ${formatMissingCategories(viewerLane.missingCategories)}. ${partner.name} hiện ${laneStageLabel(partnerLane.dayStage).toLowerCase()}.`,
+    nextStep: `Chốt tiếp ${formatMissingCategories(viewerLane.missingCategories)} rồi mới khóa ngày.`,
+  };
+}
+
+function buildWaitingCopy(lane: DayLane, partnerName: string) {
+  if (lane.dayStage === "ready_to_submit") {
+    return `${partnerName} đã đủ hết 3 mục và chỉ còn bấm khóa ngày để hai người biết streak chung có đi tiếp không.`;
+  }
+
+  if (lane.dayStage === "drafting") {
+    return `${partnerName} vẫn còn thiếu ${formatMissingCategories(lane.missingCategories)} nên waiting state này vẫn còn dang dở.`;
+  }
+
+  return `${partnerName} đang hoàn tất nốt phần cuối của ngày hôm nay.`;
+}
+
+function getProofMeta(row: DailyCheckinRow, category: GoalCategory) {
+  if (category === "study") {
+    return {
+      path: row.study_proof_path,
+      expiresAt: row.study_proof_expires_at,
+      note: row.study_note,
+    };
+  }
+
+  if (category === "screen_time") {
+    return {
+      path: row.screen_time_proof_path,
+      expiresAt: row.screen_time_proof_expires_at,
+      note: row.screen_time_note,
+    };
+  }
+
+  return {
+    path: row.body_proof_path,
+    expiresAt: row.body_proof_expires_at,
+    note: row.body_note,
+  };
+}
+
+function normalizeProofExpiry(entryDate: string, timezone: string, storedExpiry: string | null) {
+  if (!storedExpiry) {
+    return null;
+  }
+
+  const canonical = getExpiryForDate(entryDate, timezone);
+  return new Date(storedExpiry).getTime() <= new Date(canonical).getTime() ? storedExpiry : canonical;
+}
+
+function getRawGoalStatus(row: DailyCheckinRow | null, category: GoalCategory) {
+  if (!row) {
+    return "pending";
+  }
+
+  if (category === "study") return row.study_status;
+  if (category === "screen_time") return row.screen_time_status;
+  return row.body_status;
+}
+
+function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory) {
+  if (!row) {
+    return false;
+  }
+
+  if (category === "study") {
+    return typeof row.study_minutes === "number" || Boolean(row.study_note) || Boolean(row.study_proof_path || row.study_had_proof);
+  }
+
+  if (category === "screen_time") {
+    return (
+      typeof row.screen_time_minutes === "number" ||
+      Boolean(row.screen_time_note) ||
+      Boolean(row.screen_time_proof_path || row.screen_time_had_proof)
+    );
+  }
+
+  return Boolean(row.body_completed || row.body_note || row.body_proof_path || row.body_had_proof);
+}
+
+function formatMissingCategories(categories: GoalCategory[]) {
+  if (categories.length === 0) {
+    return "phần cuối cùng";
+  }
+
+  return categories
+    .map((category) => {
+      if (category === "study") return "study";
+      if (category === "screen_time") return "screen time";
+      return "body";
+    })
+    .join(", ");
+}
+
+function laneStageLabel(stage: DayLane["dayStage"]) {
+  if (stage === "shared_pass") return "Đã qua ngày";
+  if (stage === "protected_by_grace") return "Grace đang giữ";
+  if (stage === "submitted_waiting_partner") return "Đã khóa";
+  if (stage === "ready_to_submit") return "Sẵn khóa";
+  if (stage === "missed") return "Bị hụt";
+  if (stage === "waiting") return "Đang chờ";
+  return "Đang làm";
 }
 
 function looksLikeMissingSchema(message: string) {
   return message.includes("does not exist") || message.includes("relation") || message.includes("schema cache");
-}
-
-export function getFocusLabel(mode: BodyFocus | null) {
-  if (mode === "gain") return "Tăng cân";
-  if (mode === "cut") return "Giảm cân";
-  return "Body goal";
-}
-
-export function getBodyRuleLabel(goal: GoalConfigRow | null) {
-  const rule = getBodyRuleType(goal);
-
-  if (rule === "nutrition") return "Ăn uống";
-  if (rule === "recovery") return "Recovery";
-  return "Gym";
 }

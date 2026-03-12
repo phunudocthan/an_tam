@@ -15,6 +15,7 @@ export const GOAL_CATEGORIES = ["study", "screen_time", "body"] as const;
 export const CHECKIN_STATUSES = ["pending", "pass", "fail", "na"] as const;
 export const PERSONAL_DAY_STATUSES = ["draft", "pass", "fail"] as const;
 export const REVIEW_TYPES = ["daily_rule", "weekly_ai"] as const;
+export const PROOF_REACTION_KEYS = ["seen", "nice", "keep_going", "still_time"] as const;
 
 export const WEEKDAY_OPTIONS = [
   { value: 1, label: "T2" },
@@ -74,3 +75,10 @@ export const DEFAULT_GOAL_PRESET = {
   bodyRuleType: "workout",
   bodyDays: [1, 3, 5],
 } as const;
+
+export const PROOF_REACTION_OPTIONS = [
+  { key: "seen", label: "Đã thấy" },
+  { key: "nice", label: "Ngon" },
+  { key: "keep_going", label: "Tiếp đi" },
+  { key: "still_time", label: "Cuối ngày vẫn kịp" },
+] as const;

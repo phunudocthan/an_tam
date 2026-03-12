@@ -26,17 +26,18 @@ export async function POST(request: Request) {
   let cleaned = 0;
 
   for (const row of rows) {
+    const expiredCategories: Array<"study" | "screen_time" | "body"> = [];
     const pathsToDelete = [
       row.study_proof_path && row.study_proof_expires_at && new Date(row.study_proof_expires_at).getTime() <= now
-        ? row.study_proof_path
+        ? (expiredCategories.push("study"), row.study_proof_path)
         : null,
       row.screen_time_proof_path &&
       row.screen_time_proof_expires_at &&
       new Date(row.screen_time_proof_expires_at).getTime() <= now
-        ? row.screen_time_proof_path
+        ? (expiredCategories.push("screen_time"), row.screen_time_proof_path)
         : null,
       row.body_proof_path && row.body_proof_expires_at && new Date(row.body_proof_expires_at).getTime() <= now
-        ? row.body_proof_path
+        ? (expiredCategories.push("body"), row.body_proof_path)
         : null,
     ].filter(Boolean) as string[];
 
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
       .from("daily_checkins")
       .update(patch)
       .eq("id", row.id);
+
+    if (expiredCategories.length > 0) {
+      await admin.from("proof_reactions").delete().eq("checkin_id", row.id).in("category", expiredCategories);
+    }
 
     if (!updateError) {
       cleaned += pathsToDelete.length;
