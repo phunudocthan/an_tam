@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f1e8;
+  --foreground: #1b1916;
+  --surface: rgba(255, 250, 244, 0.78);
+  --surface-strong: #fff9f2;
+  --border: rgba(27, 25, 22, 0.12);
+  --muted: #6c6359;
+  --accent: #0f766e;
+  --accent-soft: #d2efe9;
+  --rose: #d47c71;
+  --gold: #c39b4b;
+  --shadow: 0 20px 60px rgba(45, 33, 19, 0.08);
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(212, 124, 113, 0.26), transparent 28%),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.22), transparent 24%),
+    linear-gradient(180deg, #fbf6ef 0%, #f4ecdf 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.display-type {
+  font-family: var(--font-display), serif;
+}
+
+.glass-card {
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.soft-ring {
+  box-shadow:
+    0 0 0 1px rgba(15, 118, 110, 0.12),
+    0 16px 40px rgba(15, 118, 110, 0.12);
+}
+
+.page-shell {
+  min-height: 100vh;
+  position: relative;
+}
+
+.page-shell::before,
+.page-shell::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(40px);
+  opacity: 0.7;
+}
+
+.page-shell::before {
+  top: 7rem;
+  left: -3rem;
+  width: 14rem;
+  height: 14rem;
+  background: rgba(212, 124, 113, 0.22);
+}
+
+.page-shell::after {
+  right: -2rem;
+  bottom: 3rem;
+  width: 16rem;
+  height: 16rem;
+  background: rgba(15, 118, 110, 0.16);
+}
