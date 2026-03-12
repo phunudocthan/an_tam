@@ -51,8 +51,34 @@ const setupSchema = z.object({
   studyMinutes: z.coerce.number().int().min(15).max(600),
   screenTimeMinutes: z.coerce.number().int().min(15).max(720),
   bodyRuleType: z.enum(["workout", "nutrition", "recovery"]),
-  bodyCheckpointCount: z.coerce.number().int().min(MIN_NUTRITION_CHECKPOINT_COUNT).max(MAX_NUTRITION_CHECKPOINT_COUNT).optional(),
+  bodyCheckpointCount: z.preprocess(
+    (value) => {
+      if (value == null) {
+        return undefined;
+      }
+
+      if (typeof value === "string" && value.trim() === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.coerce
+      .number()
+      .int()
+      .min(MIN_NUTRITION_CHECKPOINT_COUNT)
+      .max(MAX_NUTRITION_CHECKPOINT_COUNT)
+      .optional(),
+  ),
   bodyLabel: z.string().trim().min(3).max(80),
+}).superRefine((data, ctx) => {
+  if (data.bodyRuleType === "nutrition" && data.bodyCheckpointCount == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bodyCheckpointCount"],
+      message: "Nhập số checkpoint mỗi ngày cho mục Body.",
+    });
+  }
 });
 
 const proofReactionSchema = z.object({
