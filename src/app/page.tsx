@@ -21,6 +21,7 @@ import {
   saveWeeklyPactAction,
   submitDayAction,
 } from "@/app/actions";
+import { ProofUploadField } from "@/components/proof-upload-field";
 import { PROOF_INPUT_ACCEPT, WEEKLY_PACTS } from "@/lib/constants";
 import {
   getBodyRuleLabel,
@@ -100,6 +101,7 @@ export default async function HomePage({
   const bodyScheduledToday = getBodyScheduledDays(data.viewer.goals.body).includes(
     getWeekdayInTimezone(data.todayKey, data.pair.timezone),
   );
+  const partnerName = data.partner?.name ?? null;
 
   return (
     <main className="page-shell px-4 py-5 sm:px-6 sm:py-6">
@@ -118,7 +120,7 @@ export default async function HomePage({
                 Hôm nay {data.viewer.name} đang đi theo hướng {getFocusLabel(data.viewer.focusMode).toLowerCase()}.
                 {data.partner
                   ? ` ${data.partner.name} thì khác hướng, nhưng shared streak chỉ đi tiếp khi cả hai đều qua ngày.`
-                  : " Người kia chưa setup xong, nên board này đang chờ đầy đủ 2 người để bật đúng cảm giác sản phẩm."}
+                  : " Còn 1 người chưa setup xong, nên board này vẫn đang chờ đủ 2 người để bật đúng loop chờ nhau."}
               </p>
             </div>
 
@@ -129,7 +131,7 @@ export default async function HomePage({
                 label="Grace"
                 value={data.sharedGraceProtectedDates.includes(data.todayKey) ? "Đã dùng hôm nay" : "1 / 7 ngày"}
               />
-              <StatPill icon={Clock3} label="State" value={todayStateLabel(data.todayState)} />
+              <StatPill icon={Clock3} label="State" value={todayStateLabel(data.todayState, partnerName)} />
               <form action={logoutAction}>
                 <button
                   type="submit"
@@ -185,6 +187,12 @@ function TodayTab({
   data: DashboardData;
   bodyScheduledToday: boolean;
 }) {
+  const viewerName = data.viewer.name;
+  const partnerName = data.partner?.name ?? null;
+  const partnerBodyScheduledToday =
+    data.partner &&
+    getBodyScheduledDays(data.partner.goals.body).includes(getWeekdayInTimezone(data.todayKey, data.pair.timezone));
+
   return (
     <section className="grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
       <div className="glass-card rounded-[2rem] p-5 sm:p-6">
@@ -208,8 +216,10 @@ function TodayTab({
             label={getGoalLabel(data.viewer.goals.study, "study")}
             status={data.viewer.today?.study_status ?? "pending"}
             partnerStatus={data.partner?.today?.study_status ?? "pending"}
+            viewerLabel={viewerName}
+            partnerLabel={partnerName}
           >
-            <form action={saveCheckinAction} className="space-y-3">
+            <form action={saveCheckinAction} className="flex h-full flex-col gap-3">
               <input type="hidden" name="category" value="study" />
               <label className="block space-y-2 text-sm text-[var(--muted)]">
                 <span>Số phút học</span>
@@ -221,20 +231,25 @@ function TodayTab({
                   className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Proof học</span>
-                <input type="file" name="studyProof" accept={PROOF_INPUT_ACCEPT} className="block w-full text-sm text-[var(--muted)]" />
-              </label>
+              <ProofUploadField
+                name="studyProof"
+                label="Ảnh bằng chứng"
+                buttonLabel="Chọn ảnh bằng chứng"
+                accept={PROOF_INPUT_ACCEPT}
+                helper={data.viewer.today?.study_had_proof ? "Đã có proof hôm nay" : "Tự xóa khi sang ngày mới"}
+              />
               <label className="block space-y-2 text-sm text-[var(--muted)]">
                 <span>Note</span>
                 <textarea
                   name="studyNote"
                   rows={3}
                   defaultValue={data.viewer.today?.study_note ?? ""}
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
-              <SaveButton label="Lưu study" fullWidth />
+              <div className="mt-auto pt-1">
+                <SaveButton label="Lưu study" fullWidth />
+              </div>
             </form>
           </CheckinCard>
 
@@ -247,8 +262,10 @@ function TodayTab({
             label={getGoalLabel(data.viewer.goals.screen_time, "screen_time")}
             status={data.viewer.today?.screen_time_status ?? "pending"}
             partnerStatus={data.partner?.today?.screen_time_status ?? "pending"}
+            viewerLabel={viewerName}
+            partnerLabel={partnerName}
           >
-            <form action={saveCheckinAction} className="space-y-3">
+            <form action={saveCheckinAction} className="flex h-full flex-col gap-3">
               <input type="hidden" name="category" value="screen_time" />
               <label className="block space-y-2 text-sm text-[var(--muted)]">
                 <span>Screen time hôm nay (phút)</span>
@@ -260,25 +277,25 @@ function TodayTab({
                   className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
-              <label className="block space-y-2 text-sm text-[var(--muted)]">
-                <span>Screenshot (không bắt buộc)</span>
-                <input
-                  type="file"
-                  name="screenTimeProof"
-                  accept={PROOF_INPUT_ACCEPT}
-                  className="block w-full text-sm text-[var(--muted)]"
-                />
-              </label>
+              <ProofUploadField
+                name="screenTimeProof"
+                label="Screenshot"
+                buttonLabel="Tải screenshot"
+                accept={PROOF_INPUT_ACCEPT}
+                helper={data.viewer.today?.screen_time_had_proof ? "Đã có screenshot hôm nay" : "Không bắt buộc"}
+              />
               <label className="block space-y-2 text-sm text-[var(--muted)]">
                 <span>Note</span>
                 <textarea
                   name="screenTimeNote"
                   rows={3}
                   defaultValue={data.viewer.today?.screen_time_note ?? ""}
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                  className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
-              <SaveButton label="Lưu screen time" fullWidth />
+              <div className="mt-auto pt-1">
+                <SaveButton label="Lưu screen time" fullWidth />
+              </div>
             </form>
           </CheckinCard>
 
@@ -291,15 +308,11 @@ function TodayTab({
               target={getTargetText(data.viewer.goals.body, "body")}
               label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
               status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
-              partnerStatus={
-                data.partner
-                  ? getBodyScheduledDays(data.partner.goals.body).includes(getWeekdayInTimezone(data.todayKey, data.pair.timezone))
-                    ? data.partner.today?.body_status ?? "pending"
-                    : "na"
-                  : "pending"
-              }
+              partnerStatus={partnerBodyScheduledToday ? data.partner?.today?.body_status ?? "pending" : data.partner ? "na" : "pending"}
+              viewerLabel={viewerName}
+              partnerLabel={partnerName}
             >
-              <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
                 <input type="hidden" name="category" value="body" />
                 <div className="space-y-3">
                   <label className="inline-flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
@@ -313,21 +326,26 @@ function TodayTab({
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Proof body</span>
-                    <input type="file" name="bodyProof" accept={PROOF_INPUT_ACCEPT} className="block w-full text-sm text-[var(--muted)]" />
-                  </label>
+                <div className="flex h-full flex-col gap-3">
+                  <ProofUploadField
+                    name="bodyProof"
+                    label="Ảnh bằng chứng"
+                    buttonLabel="Chọn ảnh bằng chứng"
+                    accept={PROOF_INPUT_ACCEPT}
+                    helper={data.viewer.today?.body_had_proof ? "Đã có proof hôm nay" : "Tự xóa khi sang ngày mới"}
+                  />
                   <label className="block space-y-2 text-sm text-[var(--muted)]">
                     <span>Note</span>
                     <textarea
                       name="bodyNote"
                       rows={3}
                       defaultValue={data.viewer.today?.body_note ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                      className="min-h-[7.5rem] w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                     />
                   </label>
-                  <SaveButton label="Lưu body" fullWidth />
+                  <div className="mt-auto pt-1">
+                    <SaveButton label="Lưu body" fullWidth />
+                  </div>
                 </div>
               </form>
             </CheckinCard>
@@ -346,7 +364,7 @@ function TodayTab({
 
         <div className="glass-card rounded-[2rem] p-5">
           <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Khóa ngày</p>
-          <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">{todayStateLabel(data.todayState)}</h3>
+          <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">{todayStateLabel(data.todayState, partnerName)}</h3>
           <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
             Xong từng mục rồi khóa ngày để app chuyển sang trạng thái chờ nhau thật sự.
           </p>
@@ -474,7 +492,7 @@ function ReviewTab({ data }: { data: DashboardData }) {
                 <p className="text-[var(--muted)]">{day.date}</p>
               </div>
               <HistoryBadge label={data.viewer.name} status={day.viewerStatus} />
-              <HistoryBadge label={data.partner?.name ?? "Người kia"} status={day.partnerStatus} />
+              <HistoryBadge label={data.partner?.name ?? "Chưa đủ pair"} status={day.partnerStatus} />
               <HistoryBadge label="Shared" status={day.sharedStatus} shared />
             </div>
           ))}
@@ -532,6 +550,8 @@ function CheckinCard({
   target,
   status,
   partnerStatus,
+  viewerLabel,
+  partnerLabel,
   accent,
   icon: Icon,
   children,
@@ -542,14 +562,16 @@ function CheckinCard({
   target: string;
   status: string;
   partnerStatus: string;
+  viewerLabel: string;
+  partnerLabel: string | null;
   accent: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-black/8 bg-white/65 p-4">
+    <section className="flex h-full flex-col rounded-[1.75rem] border border-black/8 bg-white/65 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="sm:min-h-[6.5rem]">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
             <Icon className="size-4" />
             {title}
@@ -557,12 +579,19 @@ function CheckinCard({
           <h3 className="text-base font-semibold text-[var(--foreground)]">{label}</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">{target}</p>
         </div>
-        <div className="space-y-2 text-right">
-          <StatusPill label="Bạn" status={status} />
-          <StatusPill label="Người kia" status={partnerStatus} muted />
+        <div className="flex flex-col gap-2 sm:min-w-[12rem]">
+          <StatusPill label={viewerLabel} status={status} stretch />
+          {partnerLabel ? (
+            <StatusPill label={partnerLabel} status={partnerStatus} muted stretch />
+          ) : (
+            <div className="inline-flex min-h-11 items-center justify-between gap-3 rounded-full border border-dashed border-black/12 bg-white/72 px-3.5 py-2 text-xs font-medium text-[var(--muted)]">
+              <span className="truncate">Chờ đủ 2 người</span>
+              <span className="shrink-0">Chưa ghép</span>
+            </div>
+          )}
         </div>
       </div>
-      <div className="mt-4 rounded-[1.5rem] border border-black/8 p-4" style={{ backgroundColor: `${accent}12` }}>
+      <div className="mt-4 flex-1 rounded-[1.5rem] border border-black/8 p-4 sm:p-5" style={{ backgroundColor: `${accent}12` }}>
         {children}
       </div>
     </section>
@@ -640,7 +669,7 @@ function PersonCard({
 function WaitingPartnerCard() {
   return (
     <div className="rounded-[1.5rem] border border-dashed border-black/12 bg-white/60 p-4 text-sm leading-6 text-[var(--muted)]">
-      Người kia chưa vào app hoặc chưa setup xong. Khi đủ 2 người, card này sẽ biến thành bảng trạng thái chờ nhau theo ngày.
+      Người còn lại chưa vào app hoặc chưa setup xong. Khi đủ 2 người, card này sẽ biến thành bảng trạng thái chờ nhau theo ngày.
     </div>
   );
 }
@@ -669,17 +698,21 @@ function StatusPill({
   label,
   status,
   muted = false,
+  stretch = false,
 }: {
   label: string;
   status: string;
   muted?: boolean;
+  stretch?: boolean;
 }) {
   const tone = statusTone(status, muted);
 
   return (
-    <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${tone}`}>
-      <span>{label}</span>
-      <span>{statusLabel(status)}</span>
+    <div
+      className={`${stretch ? "flex min-h-11 w-full justify-between gap-3 px-3.5 py-2" : "inline-flex gap-2 px-3 py-1.5"} items-center rounded-full text-xs font-medium ${tone}`}
+    >
+      <span className="truncate">{label}</span>
+      <span className="shrink-0">{statusLabel(status)}</span>
     </div>
   );
 }
@@ -696,10 +729,10 @@ function statusLabel(status: string) {
   return "Pending";
 }
 
-function todayStateLabel(state: DashboardData["todayState"]) {
+function todayStateLabel(state: DashboardData["todayState"], partnerName?: string | null) {
   if (state === "shared_pass") return "Cả hai đều qua";
   if (state === "waiting_for_partner") return "Bạn xong rồi";
-  if (state === "waiting_for_you") return "Người kia đang chờ";
+  if (state === "waiting_for_you") return partnerName ? `${partnerName} đang chờ` : "Người còn lại đang chờ";
   if (state === "grace_protected") return "Được grace giữ";
   if (state === "shared_fail") return "Hôm nay hụt";
   return "Chưa khóa ngày";
