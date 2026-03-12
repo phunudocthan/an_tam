@@ -20,30 +20,30 @@ export default async function LoginPage({
             </div>
 
             <h1 className="display-type mt-6 max-w-xl text-5xl font-semibold leading-[0.95] text-[var(--foreground)] sm:text-6xl lg:text-7xl">
-              Vào lại nhịp chung.
+              Vào lại An Tam.
             </h1>
 
             <p className="mt-4 max-w-md text-sm leading-7 text-[var(--muted)] sm:text-base">
-              Chỉ cần đúng mật khẩu của mình là vào lại được ngay. Không email, không magic link, không bước thừa.
+              Nhập đúng mật khẩu của bạn là vào. Mở lên là thấy ngay hôm nay của cả hai.
             </p>
           </div>
 
           <div className="relative z-10 mt-10 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
             <div className="rounded-[2rem] border border-black/8 bg-white/68 p-5">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Đăng nhập</p>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">Mỗi người một mật khẩu riêng.</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">Vào đúng mình, rồi quay lại Today board.</p>
+              <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">Mỗi người giữ một mật khẩu riêng.</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">Không vòng qua email, không xin lại link.</p>
             </div>
 
             <div className="rounded-[2rem] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,249,242,0.68))] p-5">
               <div className="grid gap-3">
-                <IdentityCard title="Bạn" subtitle="Một mật khẩu riêng" />
+                <IdentityCard title="Bạn" subtitle="Mật khẩu của bạn" />
                 <div className="flex items-center gap-3 px-2 text-[11px] uppercase tracking-[0.26em] text-[var(--muted)]">
                   <span className="h-px flex-1 bg-black/10" />
-                  Cùng một nhịp
+                  Vào là thấy nhau
                   <span className="h-px flex-1 bg-black/10" />
                 </div>
-                <IdentityCard title="Người còn lại" subtitle="Một mật khẩu khác" />
+                <IdentityCard title="Người còn lại" subtitle="Mật khẩu còn lại" />
               </div>
             </div>
           </div>
@@ -60,11 +60,11 @@ export default async function LoginPage({
             </div>
 
             <h1 className="display-type mt-5 text-5xl font-semibold leading-none text-[var(--foreground)] sm:text-6xl lg:hidden">
-              Vào lại nhịp chung.
+              Vào lại An Tam.
             </h1>
 
             <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-[var(--muted)] sm:text-base lg:hidden">
-              Nhập đúng mật khẩu riêng của bạn để vào app.
+              Nhập đúng mật khẩu của bạn để vào app.
             </p>
           </div>
 

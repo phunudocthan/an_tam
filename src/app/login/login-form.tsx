@@ -16,7 +16,7 @@ export function LoginForm({ legacyMessage }: { legacyMessage: string | null }) {
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Đăng nhập</p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--foreground)]">Vào app</h2>
-        <p className="mt-2 text-sm leading-7 text-[var(--muted)]">Nhập đúng mật khẩu riêng của bạn.</p>
+        <p className="mt-2 text-sm leading-7 text-[var(--muted)]">Nhập đúng mật khẩu của bạn là vào được ngay.</p>
       </div>
 
       <form action={formAction} className="space-y-4">

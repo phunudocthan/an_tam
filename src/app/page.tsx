@@ -46,12 +46,12 @@ type GoalTab = GoalCategory;
 
 const DASHBOARD_TABS = [
   { key: "today" as const, label: "Hôm nay", icon: HeartHandshake },
-  { key: "review" as const, label: "Review", icon: Sparkles },
+  { key: "review" as const, label: "Nhìn lại", icon: Sparkles },
 ] satisfies Array<{ key: DashboardTab; label: string; icon: LucideIcon }>;
 
 const GOAL_TABS = [
-  { key: "study" as const, label: "Study", icon: MoonStar, accent: "var(--gold)" },
-  { key: "screen_time" as const, label: "Screen time", icon: Smartphone, accent: "var(--accent)" },
+  { key: "study" as const, label: "Học", icon: MoonStar, accent: "var(--gold)" },
+  { key: "screen_time" as const, label: "Màn hình", icon: Smartphone, accent: "var(--accent)" },
   { key: "body" as const, label: "Body", icon: Dumbbell, accent: "var(--rose)" },
 ] satisfies Array<{ key: GoalTab; label: string; icon: LucideIcon; accent: string }>;
 
@@ -154,15 +154,15 @@ function PageHeader({ data, activeGoal }: { data: DashboardData; activeGoal: Goa
             An Tam
           </div>
           <h1 className="display-type mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-            Today là chỗ để thấy mình đang ở đâu, người kia đang ở đâu.
+            Hôm nay của hai người đang ở đâu?
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-            {data.todaySummary.copy}
+            Mình đang ở đâu, người còn lại đang ở đâu, và còn thiếu gì để qua ngày.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 xl:max-w-[28rem] xl:justify-end">
-          <StatPill icon={Flame} label="Shared streak" value={`${data.sharedStreak} ngày`} />
+          <StatPill icon={Flame} label="Nhịp chung" value={`${data.sharedStreak} ngày`} />
           <StatPill
             icon={ShieldCheck}
             label="Grace"
@@ -192,7 +192,7 @@ function TodayTab({ data, activeGoal }: { data: DashboardData; activeGoal: GoalT
   const activeGoalMeta = GOAL_TABS.find((goal) => goal.key === activeGoal) ?? GOAL_TABS[0];
   const activeGoalStage = data.viewerLane.goalStages[activeGoal];
   const activePartnerGoalStage = data.partnerLane?.goalStages[activeGoal] ?? null;
-  const activeGoalTarget =
+          const activeGoalTarget =
     activeGoal === "body"
       ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
       : getTargetText(activeGoalConfig, activeGoal);
@@ -211,7 +211,7 @@ function TodayTab({ data, activeGoal }: { data: DashboardData; activeGoal: GoalT
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Làm nốt hôm nay</p>
+                <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Phần của bạn</p>
                 <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{getGoalLabel(activeGoalConfig, activeGoal)}</h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">{activeGoalTarget}</p>
               </div>
@@ -347,19 +347,27 @@ function LaneCard({
                 : "Đã khóa ngày, đang chờ người còn lại."
           : lane.dayStage === "ready_to_submit"
             ? "Phần hôm nay đã đủ để khóa."
-            : `Còn thiếu ${formatCategoryList(lane.missingCategories)}.`}
+            : `Còn ${formatCategoryList(lane.missingCategories)}.`}
       </p>
     </div>
   );
 }
 
 function ProofTray({ data }: { data: DashboardData }) {
+  const partnerProofs = data.visibleProofs.filter((proof) => !proof.isViewerProof);
+  const viewerProofs = data.visibleProofs.filter((proof) => proof.isViewerProof);
+  const trayTitle = partnerProofs.length > 0
+    ? `${data.partnerLane?.name ?? "Người còn lại"} vừa gửi gì?`
+    : viewerProofs.length > 0
+      ? "Proof của hôm nay đang nằm ở đây."
+      : "Khay proof đang trống.";
+
   return (
     <section className="glass-card rounded-[2rem] p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Proof đang còn sống</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nhìn thấy nhau trong cửa sổ ngắn này.</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{trayTitle}</h2>
         </div>
         <div className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/72 px-4 py-2 text-sm text-[var(--muted)]">
           <Eye className="size-4" />
@@ -375,8 +383,7 @@ function ProofTray({ data }: { data: DashboardData }) {
         </div>
       ) : (
         <div className="mt-5 rounded-[1.5rem] border border-dashed border-black/12 bg-white/68 p-4 text-sm leading-7 text-[var(--muted)]">
-          Hôm nay chưa có proof nào còn trong cửa sổ nhìn thấy nhau. Khi một người lưu proof, người còn lại sẽ thấy nó ở đây
-          tới trưa hôm sau.
+          Hôm nay chưa có ảnh nào đang sống trong khay proof. Khi một người lưu ảnh, người còn lại sẽ thấy nó ở đây ngay.
         </div>
       )}
     </section>
@@ -409,16 +416,16 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
+        <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
         <div className="overflow-hidden rounded-[1.25rem] border border-black/8 bg-[#f4efe7]">
           {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase proof URLs are short-lived in this MVP. */}
           <img src={proof.imageUrl} alt={`${proof.ownerName} - ${goalTabLabel(proof.category)}`} className="h-full min-h-[12rem] w-full object-cover" />
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Presence</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+          <div className="space-y-3">
+            <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Phản hồi</p>
+              <div className="mt-2 flex flex-wrap gap-2">
               {proof.reactions.length > 0 ? (
                 proof.reactions.map((reaction) => (
                   <span
@@ -465,7 +472,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
             </div>
           ) : (
             <div className="rounded-[1.25rem] border border-black/8 bg-white/78 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
-              Proof của bạn sẽ ở đây tới trưa hôm sau để người kia kịp thấy và phản hồi ngắn.
+              Khi người còn lại bấm một reaction, nó sẽ hiện ngay ở đây.
             </div>
           )}
         </div>
@@ -502,10 +509,11 @@ function GoalEditorCard({
           </label>
           <ProofUploadField
             name="studyProof"
-            label="Ảnh bằng chứng"
-            buttonLabel="Tải ảnh proof"
+            label="Gửi một ảnh"
+            buttonLabel="Chọn ảnh"
             accept={PROOF_INPUT_ACCEPT}
-            helper="Người kia xem được tới trưa mai"
+            helper="Tới trưa mai"
+            description="Người còn lại sẽ thấy ảnh này trong khay proof của hôm nay."
           />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
             <span>Note ngắn</span>
@@ -526,7 +534,7 @@ function GoalEditorCard({
         <form action={saveCheckinAction} className="flex flex-col gap-4">
           <input type="hidden" name="category" value="screen_time" />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Screen time hôm nay (phút)</span>
+            <span>Màn hình hôm nay (phút)</span>
             <input
               type="number"
               min={0}
@@ -538,9 +546,10 @@ function GoalEditorCard({
           <ProofUploadField
             name="screenTimeProof"
             label="Screenshot"
-            buttonLabel="Tải screenshot"
+            buttonLabel="Chọn screenshot"
             accept={PROOF_INPUT_ACCEPT}
-            helper="Không bắt buộc, vẫn sống tới trưa mai"
+            helper="Không bắt buộc"
+            description="Nếu có, người còn lại sẽ thấy nó trong khay proof tới trưa mai."
           />
           <label className="block space-y-2 text-sm text-[var(--muted)]">
             <span>Note ngắn</span>
@@ -578,10 +587,11 @@ function GoalEditorCard({
               </label>
               <ProofUploadField
                 name="bodyProof"
-                label="Ảnh bằng chứng"
-                buttonLabel="Tải ảnh proof"
+                label="Gửi một ảnh"
+                buttonLabel="Chọn ảnh"
                 accept={PROOF_INPUT_ACCEPT}
-                helper="Mục này cần proof để pass"
+                helper="Cần để pass"
+                description="Ảnh này sẽ hiện ở khay proof để người còn lại kịp thấy nỗ lực của bạn."
               />
             </>
           ) : (
@@ -635,12 +645,12 @@ function WeeklyPactCard({ data }: { data: DashboardData }) {
         <h2 className="font-semibold">Pact tuần</h2>
       </div>
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-        Đây là lớp nhẹ để hai người cùng phe. Nó không thay streak, chỉ giúp nhịp chung có cảm giác hơn.
+        Đây là cách hai người giữ nhau trong cùng một phe. Nó không thay streak, chỉ làm nhịp chung đỡ lạnh hơn.
       </p>
 
       <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
         <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Preset</span>
+          <span>Cách giữ nhịp tuần này</span>
           <select
             name="templateKey"
             defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
@@ -654,7 +664,7 @@ function WeeklyPactCard({ data }: { data: DashboardData }) {
           </select>
         </label>
         <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Note ngắn</span>
+          <span>Một câu để nhớ</span>
           <textarea
             name="note"
             rows={3}
@@ -675,10 +685,10 @@ function ReviewTab({ data }: { data: DashboardData }) {
       <section className="glass-card rounded-[2rem] p-5">
         <div className="flex items-center gap-2 text-[var(--foreground)]">
           <Sparkles className="size-4" />
-          <h2 className="font-semibold">Weekly insight</h2>
+          <h2 className="font-semibold">Nhìn lại tuần này</h2>
         </div>
         <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-          Review chỉ là lớp phụ. Nó nên nói ra pattern thật, không cướp spotlight của việc giữ nhịp hôm nay.
+          Chỗ này chỉ để nhìn lại pattern thật. Nó không nên cướp spotlight của việc giữ nhịp hôm nay.
         </p>
         <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/70 p-4">
           {data.weeklyInsight ? (
@@ -704,7 +714,7 @@ function ReviewTab({ data }: { data: DashboardData }) {
             type="submit"
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
           >
-            Làm mới weekly insight
+            Làm mới phần nhìn lại
           </button>
         </form>
       </section>
@@ -924,12 +934,12 @@ function stageLabel(stage: GoalStage | DayLane["dayStage"]) {
 
 function goalStageLabel(stage: GoalStage) {
   if (stage === "locked") return "Đã khóa";
-  if (stage === "ready") return "Đủ để khóa";
+  if (stage === "ready") return "Đủ để chốt";
   if (stage === "needs_fix") return "Còn thiếu";
   if (stage === "in_progress") return "Đang làm";
   if (stage === "na") return "N/A";
-  if (stage === "missed") return "Trượt";
-  return "Chưa làm";
+  if (stage === "missed") return "Hụt";
+  return "Chưa bắt đầu";
 }
 
 function stageTone(stage: GoalStage | DayLane["dayStage"], muted: boolean) {
@@ -973,41 +983,49 @@ function stageTone(stage: GoalStage | DayLane["dayStage"], muted: boolean) {
 }
 
 function todayStageLabel(stage: TodayStage) {
-  if (stage === "shared_pass") return "Cả hai qua ngày";
+  if (stage === "shared_pass") return "Hai người đã qua ngày";
   if (stage === "protected_by_grace") return "Grace đang giữ";
-  if (stage === "submitted_waiting_partner") return "Bạn đang chờ";
+  if (stage === "submitted_waiting_partner") return "Bạn đang đợi";
   if (stage === "ready_to_submit") return "Đủ để khóa";
   if (stage === "missed") return "Hôm nay hụt";
   return "Ngày vẫn đang mở";
 }
 
 function historyStatusLabel(status: string) {
-  if (status === "pass") return "Pass";
-  if (status === "fail") return "Trượt";
+  if (status === "pass") return "Qua ngày";
+  if (status === "fail") return "Hụt";
   if (status === "protected") return "Grace giữ";
   if (status === "waiting") return "Đang chờ";
   if (status === "missing" || status === "idle") return "Chưa có";
-  return "Draft";
+  return "Bản nháp";
 }
 
 function goalTabLabel(goal: GoalCategory) {
-  if (goal === "study") return "Study";
-  if (goal === "screen_time") return "Screen time";
+  if (goal === "study") return "Học";
+  if (goal === "screen_time") return "Màn hình";
   return "Body";
 }
 
 function formatCategoryList(categories: GoalCategory[]) {
   if (categories.length === 0) {
-    return "phần cuối cùng";
+    return "một nhịp cuối";
   }
 
-  return categories
-    .map((category) => {
-      if (category === "study") return "study";
-      if (category === "screen_time") return "screen time";
-      return "body";
-    })
-    .join(", ");
+  const labels = categories.map((category) => {
+    if (category === "study") return "học";
+    if (category === "screen_time") return "màn hình";
+    return "body";
+  });
+
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  if (labels.length === 2) {
+    return `${labels[0]} và ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(", ")} và ${labels.at(-1)}`;
 }
 
 function formatProofDeadline(expiresAt: string, timezone: string) {

@@ -825,78 +825,81 @@ function buildTodaySummary({
 }): DashboardData["todaySummary"] {
   if (!partner || !partnerLane) {
     return {
-      eyebrow: "Today",
-      title: "Bạn đã vào nhịp trước.",
-      copy: "An Tam chỉ thật sự có ý nghĩa khi đủ 2 người. Hiện bạn có thể set rule riêng trước để hôm nào người còn lại vào thì nhịp chung bật ngay.",
-      nextStep: "Giữ setup của bạn gọn và dùng Today như bản nháp chờ đủ hai người.",
+      eyebrow: "Chờ đủ hai người",
+      title: "Bạn đã vào trước.",
+      copy: "Phần của bạn đã có nhịp riêng rồi. Khi người còn lại vào, Today mới bật đúng cảm giác chờ nhau.",
+      nextStep: "Giữ rule của bạn đủ gọn để ngày nào người còn lại vào là dùng được ngay.",
     };
   }
 
   if (todayStage === "shared_pass") {
     return {
-      eyebrow: "Hôm nay qua ngày",
-      title: "Cả hai đều chốt xong và qua ngày.",
-      copy: `Shared streak đang ở ${sharedStreak} ngày. Proof vẫn còn ở đây tới trưa mai để hai người kịp nhìn thấy nhau.`,
-      nextStep: "Chỉ cần xem proof còn lại và để ngày mới tự mở ra.",
+      eyebrow: "Qua ngày",
+      title: "Hai người đã qua ngày.",
+      copy: `Shared streak đang ở ${sharedStreak} ngày. Proof vẫn còn ở đây tới trưa mai nếu hai người muốn nhìn lại nỗ lực của nhau.`,
+      nextStep: "Nếu còn muốn xem proof thì xem bây giờ, rồi để ngày mới tự mở ra.",
     };
   }
 
   if (todayStage === "protected_by_grace") {
     return {
       eyebrow: "Grace đang giữ nhịp",
-      title: "Hôm nay vẫn được giữ, nhưng không sạch.",
-      copy: "Cả hai đã khóa ngày rồi. Có chỗ hụt, nhưng grace đang gánh hộ một lần để nhịp chưa gãy ngay.",
+      title: "Hôm nay chưa đẹp, nhưng chưa gãy.",
+      copy: "Cả hai đã khóa ngày rồi. Có chỗ hụt, nhưng grace đang giữ nhịp hộ thêm một lần.",
       nextStep: `Ngày mai sửa đúng ${formatMissingCategories(viewerLane.missingCategories)} hoặc phần hụt của ${partner.name}.`,
     };
   }
 
   if (todayStage === "missed") {
     return {
-      eyebrow: "Nhịp hôm nay bị hụt",
+      eyebrow: "Hôm nay bị hụt",
       title: "Cả hai đã vào đủ, nhưng hôm nay không qua.",
-      copy: "Đây không phải chỗ để siết thêm áp lực. Chỉ cần nhìn đúng mục làm gãy ngày hôm nay là gì.",
-      nextStep: `Xem lại ${formatMissingCategories(viewerLane.missingCategories)} và proof/nghi chú còn sống để sửa ma sát cho ngày mai.`,
+      copy: "Không cần siết thêm áp lực. Chỉ cần nhìn đúng chỗ nào đã làm ngày hôm nay gãy nhịp.",
+      nextStep: `Xem lại ${formatMissingCategories(viewerLane.missingCategories)} và phần hụt còn đang sống trong khay proof.`,
     };
   }
 
   if (todayStage === "submitted_waiting_partner") {
     return {
-      eyebrow: "Bạn xong phần mình rồi",
+      eyebrow: "Bạn xong rồi",
       title: `${partner.name} vẫn còn ở trong ngày.`,
       copy: buildWaitingCopy(partnerLane, partner.name),
-      nextStep: partnerLane.dayStage === "ready_to_submit" ? `${partner.name} chỉ còn bấm khóa ngày.` : `Chờ ${partner.name} chốt nốt ${formatMissingCategories(partnerLane.missingCategories)}.`,
+      nextStep:
+        partnerLane.dayStage === "ready_to_submit"
+          ? `${partner.name} chỉ còn bấm khóa ngày.`
+          : `${partner.name} còn ${formatMissingCategories(partnerLane.missingCategories)}.`,
     };
   }
 
   if (todayStage === "ready_to_submit") {
     return {
-      eyebrow: partnerLane.submitted ? `${partner.name} đang chờ` : "Bạn đã đủ để khóa ngày",
-      title: partnerLane.submitted ? `${partner.name} đã khóa ngày trước rồi.` : "Phần của bạn đã đủ điều kiện.",
+      eyebrow: partnerLane.submitted ? `${partner.name} đang đợi` : "Bạn đã đủ để khóa",
+      title: partnerLane.submitted ? `${partner.name} đã khóa ngày trước rồi.` : "Phần của bạn đã đủ để khóa.",
       copy:
         partnerLane.submitted
-          ? "Bạn không cần làm thêm nữa. Chỉ cần khóa ngày để chuyển từ làm một mình sang đúng trạng thái chờ nhau."
-          : `${partner.name} đang ở trạng thái ${laneStageLabel(partnerLane.dayStage).toLowerCase()}. Nếu bạn khóa sớm, nhịp chờ nhau sẽ rõ hơn.`,
+          ? "Bạn không cần làm thêm gì nữa. Chỉ cần khóa ngày để chuyển sang trạng thái chờ nhau thật sự."
+          : `${partner.name} hiện ${laneStageLabel(partnerLane.dayStage).toLowerCase()}. Nếu bạn khóa sớm, cảm giác chờ nhau sẽ rõ hơn.`,
       nextStep: "Bấm Khóa ngày hôm nay.",
     };
   }
 
   return {
-    eyebrow: partnerLane.submitted ? `${partner.name} đang đợi` : "Hôm nay còn dang dở",
+    eyebrow: partnerLane.submitted ? `${partner.name} đang đợi` : "Ngày hôm nay vẫn đang mở",
     title: partnerLane.submitted ? `${partner.name} đã xong, còn bạn chưa xong.` : "Ngày hôm nay vẫn đang mở.",
     copy: partnerLane.submitted
-      ? `Bạn còn thiếu ${formatMissingCategories(viewerLane.missingCategories)} trước khi hai người bước vào waiting state thật sự.`
-      : `Bạn còn thiếu ${formatMissingCategories(viewerLane.missingCategories)}. ${partner.name} hiện ${laneStageLabel(partnerLane.dayStage).toLowerCase()}.`,
-    nextStep: `Chốt tiếp ${formatMissingCategories(viewerLane.missingCategories)} rồi mới khóa ngày.`,
+      ? `Bạn còn ${formatMissingCategories(viewerLane.missingCategories)} trước khi hai người bước vào trạng thái chờ nhau.`
+      : `Bạn còn ${formatMissingCategories(viewerLane.missingCategories)}. ${partner.name} hiện ${laneStageLabel(partnerLane.dayStage).toLowerCase()}.`,
+    nextStep: `Làm nốt ${formatMissingCategories(viewerLane.missingCategories)} rồi mới khóa ngày.`,
   };
 }
 
 function buildWaitingCopy(lane: DayLane, partnerName: string) {
   if (lane.dayStage === "ready_to_submit") {
-    return `${partnerName} đã đủ hết 3 mục và chỉ còn bấm khóa ngày để hai người biết streak chung có đi tiếp không.`;
+    return `${partnerName} đã đủ hết phần của mình và chỉ còn bấm khóa ngày.`;
   }
 
   if (lane.dayStage === "drafting") {
-    return `${partnerName} vẫn còn thiếu ${formatMissingCategories(lane.missingCategories)} nên waiting state này vẫn còn dang dở.`;
+    return `${partnerName} vẫn còn ${formatMissingCategories(lane.missingCategories)} nên trạng thái chờ này vẫn còn dang dở.`;
   }
 
   return `${partnerName} đang hoàn tất nốt phần cuối của ngày hôm nay.`;
@@ -967,26 +970,34 @@ function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory
 
 function formatMissingCategories(categories: GoalCategory[]) {
   if (categories.length === 0) {
-    return "phần cuối cùng";
+    return "một nhịp cuối cùng";
   }
 
-  return categories
-    .map((category) => {
-      if (category === "study") return "study";
-      if (category === "screen_time") return "screen time";
-      return "body";
-    })
-    .join(", ");
+  const labels = categories.map((category) => {
+    if (category === "study") return "học";
+    if (category === "screen_time") return "màn hình";
+    return "body";
+  });
+
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  if (labels.length === 2) {
+    return `${labels[0]} và ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(", ")} và ${labels.at(-1)}`;
 }
 
 function laneStageLabel(stage: DayLane["dayStage"]) {
-  if (stage === "shared_pass") return "Đã qua ngày";
+  if (stage === "shared_pass") return "đã qua ngày";
   if (stage === "protected_by_grace") return "Grace đang giữ";
-  if (stage === "submitted_waiting_partner") return "Đã khóa";
-  if (stage === "ready_to_submit") return "Sẵn khóa";
-  if (stage === "missed") return "Bị hụt";
-  if (stage === "waiting") return "Đang chờ";
-  return "Đang làm";
+  if (stage === "submitted_waiting_partner") return "đã khóa ngày";
+  if (stage === "ready_to_submit") return "đủ để khóa";
+  if (stage === "missed") return "bị hụt";
+  if (stage === "waiting") return "đang chờ";
+  return "đang làm";
 }
 
 function looksLikeMissingSchema(message: string) {

@@ -27,19 +27,19 @@ export default async function SetupPage() {
     <main className="page-shell px-5 py-8 sm:px-6">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Setup</p>
-          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt rule riêng của bạn trước.</h1>
+          <p className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Thiết lập</p>
+          <h1 className="display-type mt-3 text-4xl font-semibold sm:text-5xl">Chốt cách bạn muốn đi qua mỗi ngày.</h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)]">
-            Mỗi người có target riêng, nhưng app chỉ có ý nghĩa khi hai người vẫn giữ được cùng một nhịp trong ngày.
+            Thiết lập này không phải để chấm điểm cho đẹp. Nó chỉ định nghĩa thế nào là một ngày đủ của riêng bạn để hai người còn giữ được cùng một nhịp.
           </p>
         </div>
 
         <form action={completeSetupAction} className="grid gap-6">
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">1. Nhận diện của bạn trong app</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">1. Bạn muốn hiện lên thế nào?</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Tên hiển thị</span>
+                <span>Tên hiện trong app</span>
                 <input
                   required
                   name="displayName"
@@ -48,7 +48,7 @@ export default async function SetupPage() {
                 />
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Body direction</span>
+                <span>Hướng body của bạn</span>
                 <select
                   name="focusMode"
                   defaultValue={state.kind === "needs_setup" ? (state.profile?.focus_mode ?? "gain") : "gain"}
@@ -62,10 +62,10 @@ export default async function SetupPage() {
           </section>
 
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">2. Daily rule cá nhân</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">2. Nhịp riêng của bạn mỗi ngày</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Study target mỗi ngày</span>
+                <span>Mỗi ngày bạn muốn học bao lâu?</span>
                 <input
                   required
                   min={15}
@@ -78,7 +78,7 @@ export default async function SetupPage() {
                 />
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Screen time limit</span>
+                <span>Giới hạn màn hình mỗi ngày</span>
                 <input
                   required
                   min={15}
@@ -94,7 +94,7 @@ export default async function SetupPage() {
 
             <div className="mt-5 grid gap-4">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Body rule type</span>
+                <span>Hôm nay body được tính theo gì?</span>
                 <select
                   name="bodyRuleType"
                   defaultValue={DEFAULT_GOAL_PRESET.bodyRuleType}
@@ -106,10 +106,13 @@ export default async function SetupPage() {
                     </option>
                   ))}
                 </select>
+                <span className="block text-xs leading-6 text-[var(--muted)]">
+                  Chọn kiểu rule khiến bạn thấy “hôm nay mình đã giữ lời với bản thân”.
+                </span>
               </label>
 
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Tên mục body</span>
+                <span>Câu nhắc cho mục body</span>
                 <input
                   required
                   name="bodyLabel"
@@ -119,7 +122,7 @@ export default async function SetupPage() {
               </label>
 
               <div className="space-y-3 text-sm text-[var(--muted)]">
-                <span className="block">Ngày áp dụng trong tuần</span>
+                <span className="block">Ngày nào trong tuần mục này được tính?</span>
                 <div className="flex flex-wrap gap-2">
                   {WEEKDAY_OPTIONS.map((day) => (
                     <label
@@ -141,10 +144,10 @@ export default async function SetupPage() {
           </section>
 
           <section className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">3. Pact chung của tuần</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">3. Hai người sẽ giữ nhau thế nào trong tuần này?</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Preset</span>
+                <span>Cách giữ nhịp</span>
                 <select
                   name="weeklyPactKey"
                   defaultValue={WEEKLY_PACTS[0].key}
@@ -158,10 +161,10 @@ export default async function SetupPage() {
                 </select>
               </label>
               <label className="space-y-2 text-sm text-[var(--muted)]">
-                <span>Note ngắn</span>
+                <span>Một câu để nhớ</span>
                 <input
                   name="weeklyPactNote"
-                  placeholder="Ví dụ: ai xong sớm thì ping người kia"
+                  placeholder="Ví dụ: ai xong sớm thì nhắc người kia một câu ngắn"
                   className="w-full rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
                 />
               </label>
