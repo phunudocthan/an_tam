@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -36,11 +37,28 @@ import type { DailyCheckinRow, DashboardData, GoalCategory, PersonSummary } from
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+type DashboardTab = "today" | "pair" | "review";
+
+const DASHBOARD_TABS = [
+  { key: "today" as const, label: "Hôm nay", icon: CheckCircle2 },
+  { key: "pair" as const, label: "Cặp đôi", icon: HeartHandshake },
+  { key: "review" as const, label: "Review", icon: Sparkles },
+] satisfies Array<{
+  key: DashboardTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}>;
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   if (!hasSupabaseEnv()) {
     return <ConfigState />;
   }
 
+  const params = await searchParams;
   const user = await requireUser();
 
   if (!user) {
@@ -78,6 +96,7 @@ export default async function HomePage() {
   }
 
   const { data } = state;
+  const activeTab = normalizeDashboardTab(params.tab);
   const bodyScheduledToday = getBodyScheduledDays(data.viewer.goals.body).includes(
     getWeekdayInTimezone(data.todayKey, data.pair.timezone),
   );
@@ -124,278 +143,357 @@ export default async function HomePage() {
           </div>
         </header>
 
-        <section className="mb-6 grid gap-4 xl:grid-cols-[1.38fr_0.62fr]">
-          <div className="glass-card rounded-[2rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--muted)]">Today board</p>
-                <h2 className="display-type mt-2 text-3xl font-semibold">Ngày hôm nay đang ở đâu?</h2>
-              </div>
-              <div className="max-w-3xl rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
-                {data.dailyRecap}
-              </div>
-            </div>
+        <section className="mb-6">
+          <div className="glass-card sticky top-3 z-10 rounded-[1.5rem] p-2">
+            <nav className="flex gap-2 overflow-x-auto pb-1">
+              {DASHBOARD_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.key;
 
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              <CheckinCard
-                category="study"
-                title="Study"
-                icon={MoonStar}
-                accent="var(--gold)"
-                target={getTargetText(data.viewer.goals.study, "study")}
-                label={getGoalLabel(data.viewer.goals.study, "study")}
-                status={data.viewer.today?.study_status ?? "pending"}
-                partnerStatus={data.partner?.today?.study_status ?? "pending"}
-              >
-                <form action={saveCheckinAction} className="space-y-3">
-                  <input type="hidden" name="category" value="study" />
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Số phút học</span>
-                    <input
-                      type="number"
-                      min={0}
-                      name="studyMinutes"
-                      defaultValue={data.viewer.today?.study_minutes ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Proof học</span>
-                    <input
-                      type="file"
-                      name="studyProof"
-                      accept={PROOF_INPUT_ACCEPT}
-                      className="block w-full text-sm text-[var(--muted)]"
-                    />
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Note</span>
-                    <textarea
-                      name="studyNote"
-                      rows={3}
-                      defaultValue={data.viewer.today?.study_note ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <SaveButton label="Lưu study" fullWidth />
-                </form>
-              </CheckinCard>
-
-              <CheckinCard
-                category="screen_time"
-                title="Screen time"
-                icon={Smartphone}
-                accent="var(--accent)"
-                target={getTargetText(data.viewer.goals.screen_time, "screen_time")}
-                label={getGoalLabel(data.viewer.goals.screen_time, "screen_time")}
-                status={data.viewer.today?.screen_time_status ?? "pending"}
-                partnerStatus={data.partner?.today?.screen_time_status ?? "pending"}
-              >
-                <form action={saveCheckinAction} className="space-y-3">
-                  <input type="hidden" name="category" value="screen_time" />
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Screen time hôm nay (phút)</span>
-                    <input
-                      type="number"
-                      min={0}
-                      name="screenTimeMinutes"
-                      defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Screenshot (không bắt buộc)</span>
-                    <input
-                      type="file"
-                      name="screenTimeProof"
-                      accept={PROOF_INPUT_ACCEPT}
-                      className="block w-full text-sm text-[var(--muted)]"
-                    />
-                  </label>
-                  <label className="block space-y-2 text-sm text-[var(--muted)]">
-                    <span>Note</span>
-                    <textarea
-                      name="screenTimeNote"
-                      rows={3}
-                      defaultValue={data.viewer.today?.screen_time_note ?? ""}
-                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                    />
-                  </label>
-                  <SaveButton label="Lưu screen time" fullWidth />
-                </form>
-              </CheckinCard>
-
-              <div className="xl:col-span-2">
-                <CheckinCard
-                  category="body"
-                  title="Body"
-                  icon={Dumbbell}
-                  accent="var(--rose)"
-                  target={getTargetText(data.viewer.goals.body, "body")}
-                  label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
-                  status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
-                  partnerStatus={
-                    data.partner
-                      ? getBodyScheduledDays(data.partner.goals.body).includes(
-                          getWeekdayInTimezone(data.todayKey, data.pair.timezone),
-                        )
-                        ? data.partner.today?.body_status ?? "pending"
-                        : "na"
-                      : "pending"
-                  }
-                >
-                  <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                    <input type="hidden" name="category" value="body" />
-                    <div className="space-y-3">
-                      <label className="inline-flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
-                        <input type="checkbox" name="bodyCompleted" defaultChecked={data.viewer.today?.body_completed ?? false} />
-                        Hôm nay tôi đã bám đúng plan body của mình
-                      </label>
-                      <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
-                        {bodyScheduledToday
-                          ? "Body được tính hôm nay. Proof là bắt buộc để mục này pass."
-                          : "Hôm nay không nằm trong lịch body của bạn, nên card này đang ở trạng thái N/A."}
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="block space-y-2 text-sm text-[var(--muted)]">
-                        <span>Proof body</span>
-                        <input
-                          type="file"
-                          name="bodyProof"
-                          accept={PROOF_INPUT_ACCEPT}
-                          className="block w-full text-sm text-[var(--muted)]"
-                        />
-                      </label>
-                      <label className="block space-y-2 text-sm text-[var(--muted)]">
-                        <span>Note</span>
-                        <textarea
-                          name="bodyNote"
-                          rows={3}
-                          defaultValue={data.viewer.today?.body_note ?? ""}
-                          className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                        />
-                      </label>
-                      <SaveButton label="Lưu body" fullWidth />
-                    </div>
-                  </form>
-                </CheckinCard>
-              </div>
-            </div>
-
-            <form action={submitDayAction} className="mt-5">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-              >
-                Khóa ngày hôm nay
-                <ArrowRight className="size-4" />
-              </button>
-            </form>
-          </div>
-
-          <aside className="space-y-4">
-            <div className="glass-card rounded-[2rem] p-5">
-              <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhìn thấy nhau</p>
-              <div className="mt-4 grid gap-3">
-                <PersonCard person={data.viewer} row={data.viewer.today} current />
-                {data.partner ? <PersonCard person={data.partner} row={data.partner.today} /> : <WaitingPartnerCard />}
-              </div>
-            </div>
-
-            <div className="glass-card rounded-[2rem] p-5">
-              <div className="flex items-center gap-2 text-[var(--foreground)]">
-                <TimerReset className="size-4" />
-                <p className="font-semibold">Pact tuần</p>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Shared streak là phần cứng. Pact tuần là phần mềm giúp hai người cảm thấy cùng phe.
-              </p>
-              <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
-                <select
-                  name="templateKey"
-                  defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                >
-                  {WEEKLY_PACTS.map((pact) => (
-                    <option key={pact.key} value={pact.key}>
-                      {pact.title}
-                    </option>
-                  ))}
-                </select>
-                <textarea
-                  name="note"
-                  rows={3}
-                  defaultValue={data.weeklyPact?.note ?? ""}
-                  placeholder="Ví dụ: ai xong sớm thì nhắc người kia bằng 1 câu thôi, không cằn nhằn"
-                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-                />
-                <SaveButton label="Lưu pact tuần" subtle />
-              </form>
-            </div>
-          </aside>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="glass-card rounded-[2rem] p-5">
-            <div className="flex items-center gap-2 text-[var(--foreground)]">
-              <Sparkles className="size-4" />
-              <h2 className="font-semibold">Weekly insight</h2>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Daily recap đi theo rule. Weekly insight mới dùng AI, và chỉ nên nói ra pattern thật cùng vài thay đổi nhỏ cho tuần tới.
-            </p>
-            <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/65 p-4">
-              {data.weeklyInsight ? (
-                <pre className="whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">{data.weeklyInsight.content}</pre>
-              ) : (
-                <div className="space-y-2 text-sm leading-6 text-[var(--muted)]">
-                  <p>Chưa có weekly insight lưu sẵn cho tuần này.</p>
-                  <p>
-                    Hiện tại {data.viewer.name} pass study {data.weeklyStats.viewer.studyPassDays}/7 ngày, screen time giữ được{" "}
-                    {data.weeklyStats.viewer.screenWins}/7 ngày, body đạt {data.weeklyStats.viewer.bodyPassDays}/
-                    {data.weeklyStats.viewer.bodyScheduledDays} ngày lên lịch.
-                  </p>
-                </div>
-              )}
-            </div>
-            <form action={refreshWeeklyInsightAction} className="mt-4">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
-              >
-                Làm mới weekly insight
-              </button>
-            </form>
-          </div>
-
-          <div className="glass-card rounded-[2rem] p-5">
-            <div className="flex items-center gap-2 text-[var(--foreground)]">
-              <CheckCircle2 className="size-4" />
-              <h2 className="font-semibold">7 ngày gần nhất</h2>
-            </div>
-            <div className="mt-4 space-y-3">
-              {data.history.map((day) => (
-                <div
-                  key={day.date}
-                  className="grid gap-3 rounded-[1.5rem] border border-black/8 bg-white/65 px-4 py-3 text-sm sm:grid-cols-[0.9fr_1fr_1fr_1fr]"
-                >
-                  <div>
-                    <p className="font-semibold text-[var(--foreground)]">{day.label}</p>
-                    <p className="text-[var(--muted)]">{day.date}</p>
-                  </div>
-                  <HistoryBadge label={data.viewer.name} status={day.viewerStatus} />
-                  <HistoryBadge label={data.partner?.name ?? "Người kia"} status={day.partnerStatus} />
-                  <HistoryBadge label="Shared" status={day.sharedStatus} shared />
-                </div>
-              ))}
-            </div>
+                return (
+                  <Link
+                    key={tab.key}
+                    href={dashboardTabHref(tab.key)}
+                    scroll={false}
+                    className={`inline-flex min-w-[8.75rem] flex-1 items-center justify-center gap-2 rounded-[1.15rem] px-4 py-3 text-sm font-medium whitespace-nowrap transition ${
+                      isActive
+                        ? "border border-black/10 bg-white text-[var(--foreground)] shadow-[0_16px_30px_rgba(27,25,22,0.08)]"
+                        : "bg-white/55 text-[var(--muted)] hover:bg-white/85"
+                    }`}
+                  >
+                    <Icon className={`size-4 ${isActive ? "text-[var(--accent)]" : ""}`} />
+                    {tab.label}
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
         </section>
+
+        {activeTab === "today" ? <TodayTab data={data} bodyScheduledToday={bodyScheduledToday} /> : null}
+        {activeTab === "pair" ? <PairTab data={data} /> : null}
+        {activeTab === "review" ? <ReviewTab data={data} /> : null}
       </div>
     </main>
   );
+}
+
+function TodayTab({
+  data,
+  bodyScheduledToday,
+}: {
+  data: DashboardData;
+  bodyScheduledToday: boolean;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
+      <div className="glass-card rounded-[2rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--muted)]">Today board</p>
+            <h2 className="display-type mt-2 text-3xl font-semibold">Ngày hôm nay đang ở đâu?</h2>
+          </div>
+          <div className="max-w-3xl rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
+            {data.dailyRecap}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          <CheckinCard
+            category="study"
+            title="Study"
+            icon={MoonStar}
+            accent="var(--gold)"
+            target={getTargetText(data.viewer.goals.study, "study")}
+            label={getGoalLabel(data.viewer.goals.study, "study")}
+            status={data.viewer.today?.study_status ?? "pending"}
+            partnerStatus={data.partner?.today?.study_status ?? "pending"}
+          >
+            <form action={saveCheckinAction} className="space-y-3">
+              <input type="hidden" name="category" value="study" />
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Số phút học</span>
+                <input
+                  type="number"
+                  min={0}
+                  name="studyMinutes"
+                  defaultValue={data.viewer.today?.study_minutes ?? ""}
+                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Proof học</span>
+                <input type="file" name="studyProof" accept={PROOF_INPUT_ACCEPT} className="block w-full text-sm text-[var(--muted)]" />
+              </label>
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Note</span>
+                <textarea
+                  name="studyNote"
+                  rows={3}
+                  defaultValue={data.viewer.today?.study_note ?? ""}
+                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+              <SaveButton label="Lưu study" fullWidth />
+            </form>
+          </CheckinCard>
+
+          <CheckinCard
+            category="screen_time"
+            title="Screen time"
+            icon={Smartphone}
+            accent="var(--accent)"
+            target={getTargetText(data.viewer.goals.screen_time, "screen_time")}
+            label={getGoalLabel(data.viewer.goals.screen_time, "screen_time")}
+            status={data.viewer.today?.screen_time_status ?? "pending"}
+            partnerStatus={data.partner?.today?.screen_time_status ?? "pending"}
+          >
+            <form action={saveCheckinAction} className="space-y-3">
+              <input type="hidden" name="category" value="screen_time" />
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Screen time hôm nay (phút)</span>
+                <input
+                  type="number"
+                  min={0}
+                  name="screenTimeMinutes"
+                  defaultValue={data.viewer.today?.screen_time_minutes ?? ""}
+                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Screenshot (không bắt buộc)</span>
+                <input
+                  type="file"
+                  name="screenTimeProof"
+                  accept={PROOF_INPUT_ACCEPT}
+                  className="block w-full text-sm text-[var(--muted)]"
+                />
+              </label>
+              <label className="block space-y-2 text-sm text-[var(--muted)]">
+                <span>Note</span>
+                <textarea
+                  name="screenTimeNote"
+                  rows={3}
+                  defaultValue={data.viewer.today?.screen_time_note ?? ""}
+                  className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                />
+              </label>
+              <SaveButton label="Lưu screen time" fullWidth />
+            </form>
+          </CheckinCard>
+
+          <div className="xl:col-span-2">
+            <CheckinCard
+              category="body"
+              title="Body"
+              icon={Dumbbell}
+              accent="var(--rose)"
+              target={getTargetText(data.viewer.goals.body, "body")}
+              label={`${getGoalLabel(data.viewer.goals.body, "body")} · ${getBodyRuleLabel(data.viewer.goals.body)}`}
+              status={bodyScheduledToday ? data.viewer.today?.body_status ?? "pending" : "na"}
+              partnerStatus={
+                data.partner
+                  ? getBodyScheduledDays(data.partner.goals.body).includes(getWeekdayInTimezone(data.todayKey, data.pair.timezone))
+                    ? data.partner.today?.body_status ?? "pending"
+                    : "na"
+                  : "pending"
+              }
+            >
+              <form action={saveCheckinAction} className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <input type="hidden" name="category" value="body" />
+                <div className="space-y-3">
+                  <label className="inline-flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
+                    <input type="checkbox" name="bodyCompleted" defaultChecked={data.viewer.today?.body_completed ?? false} />
+                    Hôm nay tôi đã bám đúng plan body của mình
+                  </label>
+                  <p className="rounded-2xl border border-black/8 bg-white/65 px-4 py-3 text-sm leading-7 text-[var(--muted)]">
+                    {bodyScheduledToday
+                      ? "Body được tính hôm nay. Proof là bắt buộc để mục này pass."
+                      : "Hôm nay không nằm trong lịch body của bạn, nên card này đang ở trạng thái N/A."}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block space-y-2 text-sm text-[var(--muted)]">
+                    <span>Proof body</span>
+                    <input type="file" name="bodyProof" accept={PROOF_INPUT_ACCEPT} className="block w-full text-sm text-[var(--muted)]" />
+                  </label>
+                  <label className="block space-y-2 text-sm text-[var(--muted)]">
+                    <span>Note</span>
+                    <textarea
+                      name="bodyNote"
+                      rows={3}
+                      defaultValue={data.viewer.today?.body_note ?? ""}
+                      className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+                    />
+                  </label>
+                  <SaveButton label="Lưu body" fullWidth />
+                </div>
+              </form>
+            </CheckinCard>
+          </div>
+        </div>
+      </div>
+
+      <aside className="space-y-4">
+        <div className="glass-card rounded-[2rem] p-5">
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Chờ nhau</p>
+          <div className="mt-4 grid gap-3">
+            <PersonCard person={data.viewer} row={data.viewer.today} current />
+            {data.partner ? <PersonCard person={data.partner} row={data.partner.today} /> : <WaitingPartnerCard />}
+          </div>
+        </div>
+
+        <div className="glass-card rounded-[2rem] p-5">
+          <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Khóa ngày</p>
+          <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">{todayStateLabel(data.todayState)}</h3>
+          <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+            Xong từng mục rồi khóa ngày để app chuyển sang trạng thái chờ nhau thật sự.
+          </p>
+
+          <form action={submitDayAction} className="mt-5">
+            <button
+              type="submit"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Khóa ngày hôm nay
+              <ArrowRight className="size-4" />
+            </button>
+          </form>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function PairTab({ data }: { data: DashboardData }) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="glass-card rounded-[2rem] p-5">
+        <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">Nhìn thấy nhau</p>
+        <div className="mt-4 grid gap-3">
+          <PersonCard person={data.viewer} row={data.viewer.today} current />
+          {data.partner ? <PersonCard person={data.partner} row={data.partner.today} /> : <WaitingPartnerCard />}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="glass-card rounded-[2rem] p-5">
+          <div className="flex items-center gap-2 text-[var(--foreground)]">
+            <TimerReset className="size-4" />
+            <p className="font-semibold">Pact tuần</p>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Shared streak là phần cứng. Pact tuần là phần mềm giúp hai người cảm thấy cùng phe.
+          </p>
+          <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
+            <select
+              name="templateKey"
+              defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
+              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            >
+              {WEEKLY_PACTS.map((pact) => (
+                <option key={pact.key} value={pact.key}>
+                  {pact.title}
+                </option>
+              ))}
+            </select>
+            <textarea
+              name="note"
+              rows={3}
+              defaultValue={data.weeklyPact?.note ?? ""}
+              placeholder="Ví dụ: ai xong sớm thì nhắc người kia bằng 1 câu thôi, không cằn nhằn"
+              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+            />
+            <SaveButton label="Lưu pact tuần" subtle />
+          </form>
+        </div>
+
+        <div className="glass-card rounded-[2rem] p-5">
+          <div className="flex items-center gap-2 text-[var(--foreground)]">
+            <HeartHandshake className="size-4" />
+            <p className="font-semibold">Nhịp chung hôm nay</p>
+          </div>
+          <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/70 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
+            {data.dailyRecap}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReviewTab({ data }: { data: DashboardData }) {
+  return (
+    <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="glass-card rounded-[2rem] p-5">
+        <div className="flex items-center gap-2 text-[var(--foreground)]">
+          <Sparkles className="size-4" />
+          <h2 className="font-semibold">Weekly insight</h2>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+          Daily recap đi theo rule. Weekly insight mới dùng AI, và chỉ nên nói ra pattern thật cùng vài thay đổi nhỏ cho tuần tới.
+        </p>
+        <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-white/65 p-4">
+          {data.weeklyInsight ? (
+            <pre className="whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">{data.weeklyInsight.content}</pre>
+          ) : (
+            <div className="space-y-2 text-sm leading-6 text-[var(--muted)]">
+              <p>Chưa có weekly insight lưu sẵn cho tuần này.</p>
+              <p>
+                Hiện tại {data.viewer.name} pass study {data.weeklyStats.viewer.studyPassDays}/7 ngày, screen time giữ được{" "}
+                {data.weeklyStats.viewer.screenWins}/7 ngày, body đạt {data.weeklyStats.viewer.bodyPassDays}/
+                {data.weeklyStats.viewer.bodyScheduledDays} ngày lên lịch.
+              </p>
+            </div>
+          )}
+        </div>
+        <form action={refreshWeeklyInsightAction} className="mt-4">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
+          >
+            Làm mới weekly insight
+          </button>
+        </form>
+      </div>
+
+      <div className="glass-card rounded-[2rem] p-5">
+        <div className="flex items-center gap-2 text-[var(--foreground)]">
+          <CheckCircle2 className="size-4" />
+          <h2 className="font-semibold">7 ngày gần nhất</h2>
+        </div>
+        <div className="mt-4 space-y-3">
+          {data.history.map((day) => (
+            <div
+              key={day.date}
+              className="grid gap-3 rounded-[1.5rem] border border-black/8 bg-white/65 px-4 py-3 text-sm sm:grid-cols-[0.9fr_1fr_1fr_1fr]"
+            >
+              <div>
+                <p className="font-semibold text-[var(--foreground)]">{day.label}</p>
+                <p className="text-[var(--muted)]">{day.date}</p>
+              </div>
+              <HistoryBadge label={data.viewer.name} status={day.viewerStatus} />
+              <HistoryBadge label={data.partner?.name ?? "Người kia"} status={day.partnerStatus} />
+              <HistoryBadge label="Shared" status={day.sharedStatus} shared />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function normalizeDashboardTab(value: string | undefined): DashboardTab {
+  if (value === "pair" || value === "review") {
+    return value;
+  }
+
+  return "today";
+}
+
+function dashboardTabHref(tab: DashboardTab) {
+  return tab === "today" ? "/" : `/?tab=${tab}`;
 }
 
 function ConfigState() {
