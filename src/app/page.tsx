@@ -14,19 +14,20 @@ import {
   SlidersHorizontal,
   Smartphone,
   Sparkles,
-  TimerReset,
   type LucideIcon,
 } from "lucide-react";
 import {
   logoutAction,
   refreshWeeklyInsightAction,
   saveCheckinAction,
-  saveWeeklyPactAction,
   submitDayAction,
   toggleProofReactionAction,
 } from "@/app/actions";
+import { getBodyCheckpointCount, isNutritionGoal } from "@/lib/body";
+import { BodyNutritionEditor } from "@/components/body-nutrition-editor";
 import { ProofUploadField } from "@/components/proof-upload-field";
-import { PROOF_INPUT_ACCEPT, PROOF_REACTION_OPTIONS, WEEKLY_PACTS } from "@/lib/constants";
+import { WeeklyPactCard } from "@/components/weekly-pact-card";
+import { PROOF_INPUT_ACCEPT, PROOF_REACTION_OPTIONS } from "@/lib/constants";
 import {
   getBodyRuleLabel,
   getBodyScheduledDays,
@@ -171,7 +172,7 @@ function PageHeader({ data, activeGoal }: { data: DashboardData; activeGoal: Goa
           />
           <StatPill icon={Clock3} label="Đang mở" value={goalTabLabel(activeGoal)} />
           <Link
-            href="/setup"
+            href="/settings"
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white/78 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-white"
           >
             <SlidersHorizontal className="size-4" />
@@ -201,8 +202,10 @@ function TodayTab({ data, activeGoal }: { data: DashboardData; activeGoal: GoalT
   const activeGoalStage = data.viewerLane.goalStages[activeGoal];
   const activePartnerGoalStage = data.partnerLane?.goalStages[activeGoal] ?? null;
   const activeGoalTarget =
-    activeGoal === "body"
-      ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
+    activeGoal === "body" && isNutritionGoal(data.viewer.goals.body)
+      ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${data.viewerBodyCheckpoints.filter((item) => item.completed).length}/${getBodyCheckpointCount(data.viewer.goals.body)} checkpoint hôm nay`
+      : activeGoal === "body"
+        ? `${getBodyRuleLabel(data.viewer.goals.body)} · ${getBodyScheduledDays(data.viewer.goals.body).length} ngày/tuần`
       : getTargetText(activeGoalConfig, activeGoal);
 
   return (
@@ -378,7 +381,11 @@ function ProofTray({ data }: { data: DashboardData }) {
       {data.visibleProofs.length > 0 ? (
         <div className="mt-5 space-y-3">
           {data.visibleProofs.map((proof) => (
-            <ProofCard key={`${proof.checkinId}-${proof.category}`} proof={proof} timezone={data.pair.timezone} />
+            <ProofCard
+              key={`${proof.checkinId}-${proof.category}-${proof.checkpointIndex ?? "base"}`}
+              proof={proof}
+              timezone={data.pair.timezone}
+            />
           ))}
         </div>
       ) : (
@@ -397,7 +404,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
-              {goalTabLabel(proof.category)}
+              {proof.label}
             </span>
             <span className="text-sm text-[var(--muted)]">{proof.ownerName}</span>
           </div>
@@ -419,7 +426,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
       <div className="grid gap-4 p-4 sm:grid-cols-[0.92fr_1.08fr]">
         <div className="overflow-hidden rounded-[1.25rem] border border-black/8 bg-[#f4efe7]">
           {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase proof URLs are short-lived in this MVP. */}
-          <img src={proof.imageUrl} alt={`${proof.ownerName} - ${goalTabLabel(proof.category)}`} className="h-full min-h-[12rem] w-full object-cover" />
+          <img src={proof.imageUrl} alt={`${proof.ownerName} - ${proof.label}`} className="h-full min-h-[12rem] w-full object-cover" />
         </div>
 
         <div className="space-y-3">
@@ -454,6 +461,7 @@ function ProofCard({ proof, timezone }: { proof: VisibleProof; timezone: string 
                     <form key={option.key} action={toggleProofReactionAction}>
                       <input type="hidden" name="checkinId" value={proof.checkinId} />
                       <input type="hidden" name="category" value={proof.category} />
+                      <input type="hidden" name="checkpointIndex" value={proof.checkpointIndex ?? ""} />
                       <input type="hidden" name="reactionKey" value={option.key} />
                       <button
                         type="submit"
@@ -571,55 +579,68 @@ function GoalEditorCard({
       ) : null}
 
       {activeGoal === "body" ? (
-        <form action={saveCheckinAction} className="flex flex-col gap-4">
-          <input type="hidden" name="category" value="body" />
-          {bodyScheduledToday ? (
-            <>
-              <label className="flex min-h-[4.75rem] items-start gap-3 rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-[var(--foreground)]">
-                <input
-                  type="checkbox"
-                  name="bodyCompleted"
-                  defaultChecked={data.viewer.today?.body_completed ?? false}
-                  className="mt-1 size-4 shrink-0"
-                />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium leading-7">Hôm nay mình đã làm đúng phần Body của mình.</span>
-                  <span className="block text-sm leading-7 text-[var(--muted)]">
-                    Dùng cho tập luyện, ăn uống hoặc recovery, tùy rule bạn đã chọn.
-                  </span>
-                </span>
-              </label>
-              <ProofUploadField
-                name="bodyProof"
-                label="Ảnh check-in"
-                buttonLabel="Chọn ảnh"
-                accept={PROOF_INPUT_ACCEPT}
-                helper={
-                  data.viewer.today?.body_had_proof
-                    ? "Đã có ảnh hôm nay, chọn ảnh mới sẽ thay ảnh cũ"
-                    : "Người kia xem được tới trưa mai"
-                }
-                description="Ảnh này sẽ hiện ở đây để người kia kịp thấy."
-              />
-            </>
+        isNutritionGoal(data.viewer.goals.body) ? (
+          bodyScheduledToday ? (
+            <BodyNutritionEditor
+              checkpoints={data.viewerBodyCheckpoints}
+              checkpointCount={getBodyCheckpointCount(data.viewer.goals.body)}
+            />
           ) : (
             <div className="rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
               Hôm nay không nằm trong lịch Body của bạn, nên mục này không ảnh hưởng đến việc khóa ngày.
             </div>
-          )}
-          <label className="block space-y-2 text-sm text-[var(--muted)]">
-            <span>Ghi chú</span>
-            <textarea
-              name="bodyNote"
-              rows={3}
-              defaultValue={data.viewer.today?.body_note ?? ""}
-              className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-            />
-          </label>
-          <div className="pt-1">
-            <SaveButton label="Lưu mục Body" fullWidth />
-          </div>
-        </form>
+          )
+        ) : (
+          <form action={saveCheckinAction} className="flex flex-col gap-4">
+            <input type="hidden" name="category" value="body" />
+            {bodyScheduledToday ? (
+              <>
+                <label className="flex min-h-[4.75rem] items-start gap-3 rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-[var(--foreground)]">
+                  <input
+                    type="checkbox"
+                    name="bodyCompleted"
+                    defaultChecked={data.viewer.today?.body_completed ?? false}
+                    className="mt-1 size-4 shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-7">Hôm nay mình đã làm đúng phần Body của mình.</span>
+                    <span className="block text-sm leading-7 text-[var(--muted)]">
+                      Dùng cho tập luyện, ăn uống hoặc recovery, tùy rule bạn đã chọn.
+                    </span>
+                  </span>
+                </label>
+                <ProofUploadField
+                  name="bodyProof"
+                  label="Ảnh check-in"
+                  buttonLabel="Chọn ảnh"
+                  accept={PROOF_INPUT_ACCEPT}
+                  helper={
+                    data.viewer.today?.body_had_proof
+                      ? "Đã có ảnh hôm nay, chọn ảnh mới sẽ thay ảnh cũ"
+                      : "Người kia xem được tới trưa mai"
+                  }
+                  description="Ảnh này sẽ hiện ở đây để người kia kịp thấy."
+                />
+              </>
+            ) : (
+              <div className="rounded-2xl border border-black/10 bg-white/82 px-4 py-4 text-sm leading-7 text-[var(--muted)]">
+                Hôm nay không nằm trong lịch Body của bạn, nên mục này không ảnh hưởng đến việc khóa ngày.
+              </div>
+            )}
+            <label className="block space-y-2 text-sm text-[var(--muted)]">
+              <span>Ghi chú</span>
+              <textarea
+                name="bodyNote"
+                rows={3}
+                defaultValue={data.viewer.today?.body_note ?? ""}
+                className="min-h-[8rem] w-full rounded-2xl border border-black/10 bg-white/88 px-4 py-3 text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
+              />
+            </label>
+            <div className="pt-1">
+              <SaveButton label="Lưu mục Body" fullWidth />
+            </div>
+          </form>
+        )
       ) : null}
     </div>
   );
@@ -640,48 +661,6 @@ function SubmitCard({ data }: { data: DashboardData }) {
           Khóa ngày hôm nay
           <ArrowRight className="size-4" />
         </button>
-      </form>
-    </section>
-  );
-}
-
-function WeeklyPactCard({ data }: { data: DashboardData }) {
-  return (
-    <section className="glass-card rounded-[2rem] p-5">
-      <div className="flex items-center gap-2 text-[var(--foreground)]">
-        <TimerReset className="size-4" />
-        <h2 className="font-semibold">Kèo tuần</h2>
-      </div>
-      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-        Đây là kèo chung của tuần này. Không bắt buộc phải hoàn hảo, nhưng giúp hai đứa nhìn cùng một hướng.
-      </p>
-
-      <form action={saveWeeklyPactAction} className="mt-4 space-y-3">
-        <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Mẫu kèo</span>
-          <select
-            name="templateKey"
-            defaultValue={data.weeklyPact?.template_key ?? WEEKLY_PACTS[0].key}
-            className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-          >
-            {WEEKLY_PACTS.map((pact) => (
-              <option key={pact.key} value={pact.key}>
-                {pact.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block space-y-2 text-sm text-[var(--muted)]">
-          <span>Ghi chú thêm</span>
-          <textarea
-            name="note"
-            rows={3}
-            defaultValue={data.weeklyPact?.note ?? ""}
-            placeholder="Ví dụ: ai xong trước thì nhắc người kia một câu"
-            className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)]"
-          />
-        </label>
-        <SaveButton label="Lưu kèo tuần" subtle />
       </form>
     </section>
   );

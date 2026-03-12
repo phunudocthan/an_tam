@@ -91,6 +91,20 @@ export type DailyCheckinRow = {
   updated_at: string;
 };
 
+export type BodyCheckpointEntryRow = {
+  id: string;
+  pair_id: string;
+  checkin_id: string;
+  checkpoint_index: number;
+  completed: boolean;
+  note: string | null;
+  proof_path: string | null;
+  proof_expires_at: string | null;
+  had_proof: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WeeklyPactRow = {
   id: string;
   pair_id: string;
@@ -99,6 +113,7 @@ export type WeeklyPactRow = {
   title: string;
   note: string | null;
   created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -120,6 +135,7 @@ export type ProofReactionRow = {
   pair_id: string;
   checkin_id: string;
   category: GoalCategory;
+  checkpoint_index: number | null;
   reactor_user_id: string;
   reaction_key: ProofReactionKey;
   created_at: string;
@@ -182,12 +198,24 @@ export type ProofReactionSummary = {
   reactionKey: ProofReactionKey;
 };
 
+export type BodyCheckpointView = {
+  checkpointIndex: number;
+  completed: boolean;
+  note: string | null;
+  proofPath: string | null;
+  proofExpiresAt: string | null;
+  hadProof: boolean;
+};
+
 export type VisibleProof = {
   checkinId: string;
   pairId: string;
   ownerUserId: string;
   ownerName: string;
   category: GoalCategory;
+  checkpointIndex: number | null;
+  checkpointCount: number | null;
+  label: string;
   imageUrl: string;
   note: string | null;
   expiresAt: string;
@@ -207,10 +235,12 @@ export type DashboardData = {
   sharedStreak: number;
   sharedGraceProtectedDates: string[];
   weeklyPact: WeeklyPactRow | null;
+  weeklyPactEditorName: string | null;
   todayStage: TodayStage;
   todaySummary: TodaySummary;
   viewerLane: DayLane;
   partnerLane: DayLane | null;
+  viewerBodyCheckpoints: BodyCheckpointView[];
   visibleProofs: VisibleProof[];
   weeklyInsight: AiReviewRow | null;
   weeklyStats: {

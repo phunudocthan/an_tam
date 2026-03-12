@@ -1,12 +1,19 @@
-import { DEFAULT_GOAL_PRESET, GOAL_CATEGORIES, PAIR_CAPACITY, PROOF_BUCKET, WEEKDAY_OPTIONS } from "@/lib/constants";
+import { DEFAULT_GOAL_PRESET, GOAL_CATEGORIES, PAIR_CAPACITY, PROOF_BUCKET } from "@/lib/constants";
+import {
+  buildBodyCheckpointSlots,
+  getBodyCheckpointCount,
+  getBodyRuleType,
+  getBodyScheduledDays,
+  isNutritionGoal,
+} from "@/lib/body";
 import { getSessionUser, type AuthUser } from "@/lib/auth";
 import { getDateLabel, getExpiryForDate, getTodayKey, getWeekRange, getWeekdayInTimezone, listDateKeysDescending } from "@/lib/date";
 import { getPairTimezone, hasSupabaseEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   AiReviewRow,
+  BodyCheckpointEntryRow,
   BodyFocus,
-  BodyRuleType,
   DailyCheckinRow,
   DashboardData,
   DayLane,
@@ -46,10 +53,15 @@ type ProofSource = {
   ownerUserId: string;
   ownerName: string;
   category: GoalCategory;
+  checkpointIndex: number | null;
+  checkpointCount: number | null;
+  label: string;
   path: string;
   note: string | null;
   expiresAt: string;
 };
+
+export { getBodyCheckpointCount, getBodyRuleType, getBodyScheduledDays, isNutritionGoal } from "@/lib/body";
 
 export async function requireUser() {
   return getSessionUser();
@@ -169,6 +181,25 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
   const checkinRows = (checkins as DailyCheckinRow[] | null) ?? [];
   const profileNames = new Map(profileRows.map((item) => [item.id, item.display_name || item.email]));
 
+  const checkinIds = checkinRows.map((row) => row.id);
+  let bodyCheckpointRows: BodyCheckpointEntryRow[] = [];
+
+  if (checkinIds.length > 0) {
+    const { data: checkpoints, error: checkpointsError } = await admin
+      .from("body_checkpoint_entries")
+      .select("*")
+      .in("checkin_id", checkinIds)
+      .order("checkpoint_index", { ascending: true });
+
+    if (checkpointsError && !looksLikeMissingSchema(checkpointsError.message)) {
+      throw new Error(checkpointsError.message);
+    }
+
+    if (!checkpointsError) {
+      bodyCheckpointRows = (checkpoints as BodyCheckpointEntryRow[] | null) ?? [];
+    }
+  }
+
   const viewerProfile = profileRows.find((item) => item.id === user.id);
   const partnerProfile = profileRows.find((item) => item.id !== user.id) ?? null;
   const viewerGoals = buildGoalMap(goalRows, user.id);
@@ -200,8 +231,13 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
     : null;
 
   const shared = computeSharedStreak(checkinRows, membershipRows, timezone);
-  const baseViewerLane = buildDayLane(viewer, viewerToday, todayKey, timezone);
-  const basePartnerLane = partner ? buildDayLane(partner, partnerToday, todayKey, timezone) : null;
+  const viewerCheckpointEntries = viewerToday
+    ? bodyCheckpointRows.filter((entry) => entry.checkin_id === viewerToday.id)
+    : [];
+  const partnerCheckpointEntries =
+    partner && partnerToday ? bodyCheckpointRows.filter((entry) => entry.checkin_id === partnerToday.id) : [];
+  const baseViewerLane = buildDayLane(viewer, viewerToday, viewerCheckpointEntries, todayKey, timezone);
+  const basePartnerLane = partner ? buildDayLane(partner, partnerToday, partnerCheckpointEntries, todayKey, timezone) : null;
   const todayStage = deriveTodayStage({
     viewerLane: baseViewerLane,
     partnerLane: basePartnerLane,
@@ -215,10 +251,13 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
     viewer: computeWeeklyStats(checkinRows, user.id, viewerGoals, timezone),
     partner: partner ? computeWeeklyStats(checkinRows, partner.userId, partnerGoals, timezone) : null,
   };
+  const weeklyPact = (weeklyPacts as WeeklyPactRow | null) ?? null;
+  const weeklyPactEditorId = weeklyPact?.updated_by ?? weeklyPact?.created_by ?? null;
 
   const visibleProofs = await buildVisibleProofs({
     admin,
     rows: checkinRows,
+    bodyCheckpointRows,
     viewer,
     partner,
     profileNames,
@@ -237,7 +276,8 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
       weekStart,
       sharedStreak: shared.streak,
       sharedGraceProtectedDates: shared.protectedDates,
-      weeklyPact: (weeklyPacts as WeeklyPactRow | null) ?? null,
+      weeklyPact,
+      weeklyPactEditorName: weeklyPactEditorId ? profileNames.get(weeklyPactEditorId) ?? null : null,
       todayStage,
       todaySummary: buildTodaySummary({
         partner,
@@ -248,6 +288,7 @@ export async function loadAppState(user: AuthUser): Promise<AppState> {
       }),
       viewerLane,
       partnerLane,
+      viewerBodyCheckpoints: buildBodyCheckpointSlots(viewerCheckpointEntries, getBodyCheckpointCount(viewerGoals.body)),
       visibleProofs,
       weeklyInsight: (reviews as AiReviewRow | null) ?? null,
       weeklyStats,
@@ -262,6 +303,7 @@ export function evaluateDay(
   dateKey: string,
   timezone: string,
   mode: "draft" | "submit",
+  bodyCheckpointEntries: BodyCheckpointEntryRow[] = [],
 ): DailyEvaluation {
   const studyGoal = goals.study;
   const screenGoal = goals.screen_time;
@@ -302,20 +344,30 @@ export function evaluateDay(
   const scheduledDays = getBodyScheduledDays(bodyGoal);
   const weekday = getWeekdayInTimezone(dateKey, timezone);
   const bodyIsScheduled = scheduledDays.includes(weekday);
+  const nutritionCheckpointCount = getBodyCheckpointCount(bodyGoal);
+  const completedNutritionCheckpoints = bodyCheckpointEntries.filter((entry) => entry.completed).length;
 
   const bodyStatus = !bodyIsScheduled
     ? "na"
-    : row?.body_completed
-      ? bodyGoal?.proof_required
-        ? hasBodyProof
-          ? "pass"
-          : mode === "submit"
-            ? "fail"
+    : isNutritionGoal(bodyGoal)
+      ? completedNutritionCheckpoints >= nutritionCheckpointCount
+        ? "pass"
+        : mode === "submit"
+          ? "fail"
+          : bodyCheckpointEntries.length > 0
+            ? "pending"
             : "pending"
-        : "pass"
-      : mode === "submit"
-        ? "fail"
-        : "pending";
+      : row?.body_completed
+        ? bodyGoal?.proof_required
+          ? hasBodyProof
+            ? "pass"
+            : mode === "submit"
+              ? "fail"
+              : "pending"
+          : "pass"
+        : mode === "submit"
+          ? "fail"
+          : "pending";
 
   const personalStatus =
     [studyStatus, screenTimeStatus, bodyStatus].every((status) => status === "pass" || status === "na")
@@ -342,24 +394,6 @@ export function getGoalLabel(goal: GoalConfigRow | null, category: GoalCategory)
   return goal.title;
 }
 
-export function getBodyScheduledDays(goal: GoalConfigRow | null) {
-  const raw = goal?.config && Array.isArray(goal.config.weekdays) ? goal.config.weekdays : DEFAULT_GOAL_PRESET.bodyDays;
-
-  return raw
-    .map((value) => Number(value))
-    .filter((value) => WEEKDAY_OPTIONS.some((option) => option.value === value));
-}
-
-export function getBodyRuleType(goal: GoalConfigRow | null): BodyRuleType {
-  const raw = goal?.config?.ruleType;
-
-  if (raw === "nutrition" || raw === "recovery" || raw === "workout") {
-    return raw;
-  }
-
-  return DEFAULT_GOAL_PRESET.bodyRuleType;
-}
-
 export function getTargetText(goal: GoalConfigRow | null, category: GoalCategory) {
   if (category === "study") {
     return `${goal?.target_value ?? DEFAULT_GOAL_PRESET.studyMinutes} phút`;
@@ -367,6 +401,10 @@ export function getTargetText(goal: GoalConfigRow | null, category: GoalCategory
 
   if (category === "screen_time") {
     return `<= ${goal?.target_value ?? DEFAULT_GOAL_PRESET.screenTimeMinutes} phút`;
+  }
+
+  if (isNutritionGoal(goal)) {
+    return `${getBodyRuleLabel(goal)} · ${getBodyCheckpointCount(goal)}/${getBodyCheckpointCount(goal)} checkpoint`;
   }
 
   return `${getBodyRuleLabel(goal)} · ${getBodyScheduledDays(goal).length} ngày/tuần`;
@@ -396,7 +434,13 @@ function buildGoalMap(goalRows: GoalConfigRow[], userId: string): GoalConfigMap 
   };
 }
 
-function buildDayLane(person: PersonSummary, row: DailyCheckinRow | null, todayKey: string, timezone: string): DayLane {
+function buildDayLane(
+  person: PersonSummary,
+  row: DailyCheckinRow | null,
+  bodyCheckpointEntries: BodyCheckpointEntryRow[],
+  todayKey: string,
+  timezone: string,
+): DayLane {
   const goalStages = {
     study: deriveGoalStage(row, "study", true),
     screen_time: deriveGoalStage(row, "screen_time", true),
@@ -404,6 +448,8 @@ function buildDayLane(person: PersonSummary, row: DailyCheckinRow | null, todayK
       row,
       "body",
       getBodyScheduledDays(person.goals.body).includes(getWeekdayInTimezone(todayKey, timezone)),
+      bodyCheckpointEntries,
+      person.goals.body,
     ),
   } satisfies DayLane["goalStages"];
 
@@ -438,7 +484,13 @@ function buildDayLane(person: PersonSummary, row: DailyCheckinRow | null, todayK
   };
 }
 
-function deriveGoalStage(row: DailyCheckinRow | null, category: GoalCategory, scheduledToday: boolean): GoalStage {
+function deriveGoalStage(
+  row: DailyCheckinRow | null,
+  category: GoalCategory,
+  scheduledToday: boolean,
+  bodyCheckpointEntries: BodyCheckpointEntryRow[] = [],
+  bodyGoal: GoalConfigRow | null = null,
+): GoalStage {
   if (!scheduledToday) {
     return "na";
   }
@@ -451,7 +503,7 @@ function deriveGoalStage(row: DailyCheckinRow | null, category: GoalCategory, sc
     return "missed";
   }
 
-  if (!hasGoalDraftContent(row, category)) {
+  if (!hasGoalDraftContent(row, category, bodyCheckpointEntries, bodyGoal)) {
     return "not_started";
   }
 
@@ -686,6 +738,7 @@ function computeWeeklyStats(
 async function buildVisibleProofs({
   admin,
   rows,
+  bodyCheckpointRows,
   viewer,
   partner,
   profileNames,
@@ -694,6 +747,7 @@ async function buildVisibleProofs({
 }: {
   admin: ReturnType<typeof createAdminClient>;
   rows: DailyCheckinRow[];
+  bodyCheckpointRows: BodyCheckpointEntryRow[];
   viewer: PersonSummary;
   partner: PersonSummary | null;
   profileNames: Map<string, string>;
@@ -705,6 +759,54 @@ async function buildVisibleProofs({
 
   for (const row of rows) {
     for (const category of GOAL_CATEGORIES) {
+      const ownerBodyGoal =
+        row.user_id === viewer.userId
+          ? viewer.goals.body
+          : row.user_id === partner?.userId
+            ? partner.goals.body
+            : null;
+
+      if (category === "body" && isNutritionGoal(ownerBodyGoal)) {
+        const checkpointCount = getBodyCheckpointCount(ownerBodyGoal);
+        const checkpoints = bodyCheckpointRows.filter((entry) => entry.checkin_id === row.id && Boolean(entry.proof_path));
+
+        for (const checkpoint of checkpoints) {
+          const visibleUntil = normalizeProofExpiry(row.entry_date, timezone, checkpoint.proof_expires_at);
+
+          if (!checkpoint.proof_path || !visibleUntil || new Date(visibleUntil).getTime() <= now.getTime()) {
+            continue;
+          }
+
+          const dedupeKey = `${row.user_id}:${category}:${checkpoint.checkpoint_index}`;
+
+          if (seenKeys.has(dedupeKey)) {
+            continue;
+          }
+
+          seenKeys.add(dedupeKey);
+          visibleSources.push({
+            checkinId: row.id,
+            pairId: row.pair_id,
+            ownerUserId: row.user_id,
+            ownerName:
+              row.user_id === viewer.userId
+                ? viewer.name
+                : row.user_id === partner?.userId
+                  ? partner.name
+                  : profileNames.get(row.user_id) ?? "Người còn lại",
+            category,
+            checkpointIndex: checkpoint.checkpoint_index,
+            checkpointCount,
+            label: `Body · ${checkpoint.checkpoint_index}/${checkpointCount}`,
+            path: checkpoint.proof_path,
+            note: checkpoint.note,
+            expiresAt: visibleUntil,
+          });
+        }
+
+        continue;
+      }
+
       const proofMeta = getProofMeta(row, category);
 
       if (!proofMeta.path || !proofMeta.expiresAt) {
@@ -735,6 +837,9 @@ async function buildVisibleProofs({
               ? partner.name
               : profileNames.get(row.user_id) ?? "Người còn lại",
         category,
+        checkpointIndex: null,
+        checkpointCount: null,
+        label: category === "body" ? "Body" : category === "study" ? "Học" : "Điện thoại",
         path: proofMeta.path,
         note: proofMeta.note,
         expiresAt: visibleUntil,
@@ -772,7 +877,12 @@ async function buildVisibleProofs({
       }
 
       const reactionsForProof = reactionRows
-        .filter((reaction) => reaction.checkin_id === source.checkinId && reaction.category === source.category)
+        .filter(
+          (reaction) =>
+            reaction.checkin_id === source.checkinId &&
+            reaction.category === source.category &&
+            (reaction.checkpoint_index ?? null) === source.checkpointIndex,
+        )
         .map((reaction) => ({
           reactorUserId: reaction.reactor_user_id,
           reactorName: profileNames.get(reaction.reactor_user_id) ?? "Partner",
@@ -785,6 +895,9 @@ async function buildVisibleProofs({
         ownerUserId: source.ownerUserId,
         ownerName: source.ownerName,
         category: source.category,
+        checkpointIndex: source.checkpointIndex,
+        checkpointCount: source.checkpointCount,
+        label: source.label,
         imageUrl: data.signedUrl,
         note: source.note,
         expiresAt: source.expiresAt,
@@ -948,7 +1061,12 @@ function getRawGoalStatus(row: DailyCheckinRow | null, category: GoalCategory) {
   return row.body_status;
 }
 
-function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory) {
+function hasGoalDraftContent(
+  row: DailyCheckinRow | null,
+  category: GoalCategory,
+  bodyCheckpointEntries: BodyCheckpointEntryRow[] = [],
+  bodyGoal: GoalConfigRow | null = null,
+) {
   if (!row) {
     return false;
   }
@@ -963,6 +1081,10 @@ function hasGoalDraftContent(row: DailyCheckinRow | null, category: GoalCategory
       Boolean(row.screen_time_note) ||
       Boolean(row.screen_time_proof_path || row.screen_time_had_proof)
     );
+  }
+
+  if (isNutritionGoal(bodyGoal)) {
+    return bodyCheckpointEntries.length > 0;
   }
 
   return Boolean(row.body_completed || row.body_note || row.body_proof_path || row.body_had_proof);

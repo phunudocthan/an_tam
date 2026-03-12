@@ -9,12 +9,19 @@ import {
   ALLOWED_PROOF_MIME_TYPES,
   APP_NAME,
   DEFAULT_GOAL_PRESET,
+  MAX_NUTRITION_CHECKPOINT_COUNT,
   MAX_PROOF_SIZE_BYTES,
+  MIN_NUTRITION_CHECKPOINT_COUNT,
   GOAL_CATEGORIES,
   PROOF_BUCKET,
   PROOF_REACTION_KEYS,
   WEEKLY_PACTS,
 } from "@/lib/constants";
+import {
+  clampCheckpointCount,
+  getBodyCheckpointCount,
+  isNutritionGoal,
+} from "@/lib/body";
 import { getExpiryForDate, getTodayKey, getWeekRange } from "@/lib/date";
 import {
   evaluateDay,
@@ -24,6 +31,7 @@ import {
 import { getPairTimezone } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
+  BodyCheckpointEntryRow,
   DailyCheckinRow,
   GoalCategory,
   GoalConfigMap,
@@ -43,15 +51,19 @@ const setupSchema = z.object({
   studyMinutes: z.coerce.number().int().min(15).max(600),
   screenTimeMinutes: z.coerce.number().int().min(15).max(720),
   bodyRuleType: z.enum(["workout", "nutrition", "recovery"]),
+  bodyCheckpointCount: z.coerce.number().int().min(MIN_NUTRITION_CHECKPOINT_COUNT).max(MAX_NUTRITION_CHECKPOINT_COUNT).optional(),
   bodyLabel: z.string().trim().min(3).max(80),
-  weeklyPactKey: z.string().trim().min(1),
-  weeklyPactNote: z.string().trim().max(160).optional().default(""),
 });
 
 const proofReactionSchema = z.object({
   checkinId: z.string().uuid(),
   category: z.enum(GOAL_CATEGORIES),
+  checkpointIndex: z.coerce.number().int().min(1).max(MAX_NUTRITION_CHECKPOINT_COUNT).nullable().optional(),
   reactionKey: z.enum(PROOF_REACTION_KEYS),
+});
+
+const bodyCheckpointSchema = z.object({
+  checkpointIndex: z.coerce.number().int().min(1).max(MAX_NUTRITION_CHECKPOINT_COUNT),
 });
 
 export async function loginWithPasswordAction(
@@ -95,13 +107,12 @@ export async function completeSetupAction(formData: FormData) {
     studyMinutes: formData.get("studyMinutes"),
     screenTimeMinutes: formData.get("screenTimeMinutes"),
     bodyRuleType: formData.get("bodyRuleType"),
+    bodyCheckpointCount: formData.get("bodyCheckpointCount"),
     bodyLabel: formData.get("bodyLabel"),
-    weeklyPactKey: formData.get("weeklyPactKey"),
-    weeklyPactNote: formData.get("weeklyPactNote"),
   });
 
-  const selectedPact = WEEKLY_PACTS.find((pact) => pact.key === parsed.weeklyPactKey) ?? WEEKLY_PACTS[0];
   const safeBodyDays = bodyDays.length > 0 ? bodyDays : [...DEFAULT_GOAL_PRESET.bodyDays];
+  const safeCheckpointCount = clampCheckpointCount(parsed.bodyCheckpointCount ?? DEFAULT_GOAL_PRESET.bodyCheckpointCount);
   const admin = createAdminClient();
 
   let { data: pair } = await admin.from("pairs").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle();
@@ -197,10 +208,11 @@ export async function completeSetupAction(formData: FormData) {
       title: parsed.bodyLabel,
       target_value: safeBodyDays.length,
       unit: "days",
-      proof_required: true,
+      proof_required: parsed.bodyRuleType === "nutrition" ? false : true,
       config: {
         ruleType: parsed.bodyRuleType,
         weekdays: safeBodyDays,
+        checkpointCount: parsed.bodyRuleType === "nutrition" ? safeCheckpointCount : null,
       },
       active: true,
     },
@@ -214,26 +226,6 @@ export async function completeSetupAction(formData: FormData) {
     throw new Error(goalError.message);
   }
 
-  const { weekStart } = getWeekRange(pair.timezone ?? getPairTimezone());
-
-  const { error: pactError } = await admin.from("weekly_pacts").upsert(
-    {
-      pair_id: pair.id,
-      week_start: weekStart,
-      template_key: selectedPact.key,
-      title: selectedPact.title,
-      note: parsed.weeklyPactNote || null,
-      created_by: user.id,
-    },
-    {
-      onConflict: "pair_id,week_start",
-    },
-  );
-
-  if (pactError) {
-    throw new Error(pactError.message);
-  }
-
   redirect("/");
 }
 
@@ -245,7 +237,7 @@ export async function saveCheckinAction(formData: FormData) {
   }
 
   const category = String(formData.get("category") ?? "");
-  const { pair, goals, todayKey, todayRow, admin } = await getMemberContext(user.id);
+  const { pair, goals, todayKey, todayRow, bodyCheckpointEntries, admin } = await getMemberContext(user.id);
 
   const nextRow: Partial<DailyCheckinRow> = {
     ...todayRow,
@@ -297,6 +289,11 @@ export async function saveCheckinAction(formData: FormData) {
   }
 
   if (category === "body") {
+    if (isNutritionGoal(goals.body)) {
+      revalidatePath("/");
+      return;
+    }
+
     nextRow.body_completed = formData.get("bodyCompleted") === "on";
     nextRow.body_note = readText(formData.get("bodyNote"));
     const file = formData.get("bodyProof");
@@ -323,6 +320,7 @@ export async function saveCheckinAction(formData: FormData) {
     todayKey,
     pair.timezone,
     todayRow?.submitted_at ? "submit" : "draft",
+    bodyCheckpointEntries,
   );
 
   const { error } = await admin.from("daily_checkins").upsert(
@@ -345,6 +343,90 @@ export async function saveCheckinAction(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function saveBodyCheckpointAction(formData: FormData) {
+  const user = await requireUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const parsed = bodyCheckpointSchema.parse({
+    checkpointIndex: formData.get("checkpointIndex"),
+  });
+
+  const { pair, goals, todayKey, todayRow, bodyCheckpointEntries, admin } = await getMemberContext(user.id);
+
+  if (!isNutritionGoal(goals.body)) {
+    revalidatePath("/");
+    return;
+  }
+
+  const checkpointCount = getBodyCheckpointCount(goals.body);
+
+  if (parsed.checkpointIndex > checkpointCount) {
+    throw new Error("Checkpoint vượt quá số lượng đã cài.");
+  }
+
+  const ensuredTodayRow = todayRow ?? (await ensureTodayRow(admin, pair.id, user.id, todayKey));
+  const existingEntry = bodyCheckpointEntries.find((entry) => entry.checkpoint_index === parsed.checkpointIndex) ?? null;
+  const file = formData.get(`checkpointProof-${parsed.checkpointIndex}`);
+  const uploadedPath = await maybeUploadProof({
+    admin,
+    category: "body",
+    dateKey: todayKey,
+    existingPath: existingEntry?.proof_path ?? null,
+    file,
+    pairId: pair.id,
+    userId: user.id,
+    filenameSuffix: `checkpoint-${parsed.checkpointIndex}`,
+  });
+
+  const nextEntry = {
+    pair_id: pair.id,
+    checkin_id: ensuredTodayRow.id,
+    checkpoint_index: parsed.checkpointIndex,
+    completed: formData.get("completed") === "on",
+    note: readText(formData.get("note")),
+    proof_path: uploadedPath ?? existingEntry?.proof_path ?? null,
+    proof_expires_at: uploadedPath
+      ? getExpiryForDate(todayKey, pair.timezone)
+      : existingEntry?.proof_expires_at ?? null,
+    had_proof: uploadedPath ? true : (existingEntry?.had_proof ?? false),
+  } satisfies Partial<BodyCheckpointEntryRow>;
+
+  const { error: checkpointError } = await admin.from("body_checkpoint_entries").upsert(nextEntry, {
+    onConflict: "checkin_id,checkpoint_index",
+  });
+
+  if (checkpointError) {
+    throw new Error(checkpointError.message);
+  }
+
+  const mergedEntries = mergeBodyCheckpointEntries(bodyCheckpointEntries, nextEntry);
+  const evaluation = evaluateDay(
+    ensuredTodayRow,
+    goals,
+    todayKey,
+    pair.timezone,
+    ensuredTodayRow.submitted_at ? "submit" : "draft",
+    mergedEntries,
+  );
+
+  const { error: dailyError } = await admin
+    .from("daily_checkins")
+    .update({
+      body_status: evaluation.bodyStatus,
+      personal_day_status: evaluation.personalStatus,
+    })
+    .eq("id", ensuredTodayRow.id);
+
+  if (dailyError) {
+    throw new Error(dailyError.message);
+  }
+
+  revalidatePath("/");
+}
+
 export async function submitDayAction() {
   const user = await requireUser();
 
@@ -352,13 +434,13 @@ export async function submitDayAction() {
     redirect("/login");
   }
 
-  const { pair, goals, todayKey, todayRow, admin } = await getMemberContext(user.id);
+  const { pair, goals, todayKey, todayRow, bodyCheckpointEntries, admin } = await getMemberContext(user.id);
   const currentRow = {
     ...createBlankDayRow(pair.id, user.id, todayKey),
     ...todayRow,
   };
 
-  const evaluation = evaluateDay(currentRow, goals, todayKey, pair.timezone, "submit");
+  const evaluation = evaluateDay(currentRow, goals, todayKey, pair.timezone, "submit", bodyCheckpointEntries);
 
   const { error } = await admin.from("daily_checkins").upsert(
     {
@@ -403,6 +485,7 @@ export async function saveWeeklyPactAction(formData: FormData) {
       title: pact.title,
       note,
       created_by: user.id,
+      updated_by: user.id,
     },
     {
       onConflict: "pair_id,week_start",
@@ -426,6 +509,7 @@ export async function toggleProofReactionAction(formData: FormData) {
   const parsed = proofReactionSchema.parse({
     checkinId: formData.get("checkinId"),
     category: formData.get("category"),
+    checkpointIndex: readNullableNumber(formData.get("checkpointIndex")),
     reactionKey: formData.get("reactionKey"),
   });
 
@@ -448,7 +532,10 @@ export async function toggleProofReactionAction(formData: FormData) {
     return;
   }
 
-  const proofMeta = getProofMeta(targetRow, parsed.category);
+  const proofMeta =
+    parsed.category === "body" && parsed.checkpointIndex
+      ? await getBodyCheckpointProofMeta(admin, parsed.checkinId, parsed.checkpointIndex)
+      : getProofMeta(targetRow, parsed.category);
 
   const visibleUntil = normalizeProofExpiry(targetRow.entry_date, pair.timezone, proofMeta.expiresAt);
 
@@ -457,13 +544,17 @@ export async function toggleProofReactionAction(formData: FormData) {
     return;
   }
 
-  const { data: existing, error: existingError } = await admin
+  const existingQuery = admin
     .from("proof_reactions")
     .select("*")
     .eq("checkin_id", parsed.checkinId)
     .eq("category", parsed.category)
-    .eq("reactor_user_id", user.id)
-    .maybeSingle();
+    .eq("reactor_user_id", user.id);
+
+  const { data: existing, error: existingError } =
+    parsed.checkpointIndex == null
+      ? await existingQuery.is("checkpoint_index", null).maybeSingle()
+      : await existingQuery.eq("checkpoint_index", parsed.checkpointIndex).maybeSingle();
 
   if (existingError) {
     throw new Error(existingError.message);
@@ -478,16 +569,14 @@ export async function toggleProofReactionAction(formData: FormData) {
       throw new Error(error.message);
     }
   } else {
-    const { error } = await admin.from("proof_reactions").upsert(
+    const { error } = await admin.from("proof_reactions").insert(
       {
         pair_id: pair.id,
         checkin_id: parsed.checkinId,
         category: parsed.category,
+        checkpoint_index: parsed.checkpointIndex ?? null,
         reactor_user_id: user.id,
         reaction_key: parsed.reactionKey,
-      },
-      {
-        onConflict: "checkin_id,category,reactor_user_id",
       },
     );
 
@@ -595,12 +684,29 @@ async function getMemberContext(userId: string) {
     todayRow = null;
   }
 
+  let bodyCheckpointEntries: BodyCheckpointEntryRow[] = [];
+
+  if (todayRow) {
+    const { data: checkpoints, error: checkpointsError } = await admin
+      .from("body_checkpoint_entries")
+      .select("*")
+      .eq("checkin_id", todayRow.id)
+      .order("checkpoint_index", { ascending: true });
+
+    if (checkpointsError) {
+      throw new Error(checkpointsError.message);
+    }
+
+    bodyCheckpointEntries = (checkpoints as BodyCheckpointEntryRow[] | null) ?? [];
+  }
+
   return {
     admin,
     pair: pairRow,
     todayKey,
     goals: buildGoalMap((goals as GoalConfigRow[] | null) ?? []),
     todayRow,
+    bodyCheckpointEntries,
   };
 }
 
@@ -613,6 +719,15 @@ function buildGoalMap(rows: GoalConfigRow[]): GoalConfigMap {
 }
 
 function readNumber(value: FormDataEntryValue | null) {
+  if (!value || typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function readNullableNumber(value: FormDataEntryValue | null) {
   if (!value || typeof value !== "string" || value.trim() === "") {
     return null;
   }
@@ -668,6 +783,7 @@ async function maybeUploadProof({
   file,
   pairId,
   userId,
+  filenameSuffix,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   category: "study" | "screen_time" | "body";
@@ -676,6 +792,7 @@ async function maybeUploadProof({
   file: FormDataEntryValue | null;
   pairId: string;
   userId: string;
+  filenameSuffix?: string;
 }) {
   if (!(file instanceof File) || file.size === 0) {
     return null;
@@ -690,7 +807,8 @@ async function maybeUploadProof({
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const path = `${pairId}/${userId}/${dateKey}/${category}-${Date.now()}.${extension}`;
+  const baseName = filenameSuffix ? `${category}-${filenameSuffix}` : `${category}-${Date.now()}`;
+  const path = `${pairId}/${userId}/${dateKey}/${baseName}.${extension}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   const { error } = await admin.storage.from(PROOF_BUCKET).upload(path, buffer, {
@@ -707,6 +825,75 @@ async function maybeUploadProof({
   }
 
   return path;
+}
+
+async function ensureTodayRow(
+  admin: ReturnType<typeof createAdminClient>,
+  pairId: string,
+  userId: string,
+  todayKey: string,
+) {
+  const { data, error } = await admin
+    .from("daily_checkins")
+    .upsert(createBlankDayRow(pairId, userId, todayKey), {
+      onConflict: "user_id,entry_date",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as DailyCheckinRow;
+}
+
+function mergeBodyCheckpointEntries(
+  existingEntries: BodyCheckpointEntryRow[],
+  nextEntry: Partial<BodyCheckpointEntryRow>,
+) {
+  const filtered = existingEntries.filter((entry) => entry.checkpoint_index !== nextEntry.checkpoint_index);
+
+  return [
+    ...filtered,
+    {
+      id: nextEntry.id ?? "",
+      pair_id: nextEntry.pair_id ?? filtered[0]?.pair_id ?? "",
+      checkin_id: nextEntry.checkin_id ?? filtered[0]?.checkin_id ?? "",
+      checkpoint_index: nextEntry.checkpoint_index ?? 1,
+      completed: nextEntry.completed ?? false,
+      note: nextEntry.note ?? null,
+      proof_path: nextEntry.proof_path ?? null,
+      proof_expires_at: nextEntry.proof_expires_at ?? null,
+      had_proof: nextEntry.had_proof ?? false,
+      created_at: nextEntry.created_at ?? "",
+      updated_at: nextEntry.updated_at ?? "",
+    },
+  ].sort((left, right) => left.checkpoint_index - right.checkpoint_index);
+}
+
+async function getBodyCheckpointProofMeta(
+  admin: ReturnType<typeof createAdminClient>,
+  checkinId: string,
+  checkpointIndex: number,
+) {
+  const { data, error } = await admin
+    .from("body_checkpoint_entries")
+    .select("*")
+    .eq("checkin_id", checkinId)
+    .eq("checkpoint_index", checkpointIndex)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const checkpoint = data as BodyCheckpointEntryRow | null;
+
+  return {
+    path: checkpoint?.proof_path ?? null,
+    expiresAt: checkpoint?.proof_expires_at ?? null,
+  };
 }
 
 function pickPersistedCheckinFields(nextRow: Partial<DailyCheckinRow>, existingRow: DailyCheckinRow | null) {

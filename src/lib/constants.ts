@@ -27,6 +27,10 @@ export const WEEKDAY_OPTIONS = [
   { value: 0, label: "CN" },
 ] as const;
 
+export const DEFAULT_NUTRITION_CHECKPOINT_COUNT = 3;
+export const MIN_NUTRITION_CHECKPOINT_COUNT = 2;
+export const MAX_NUTRITION_CHECKPOINT_COUNT = 6;
+
 export const BODY_RULE_OPTIONS = [
   {
     value: "workout",
@@ -74,6 +78,7 @@ export const DEFAULT_GOAL_PRESET = {
   bodyLabel: "Bám sát plan body hôm nay",
   bodyRuleType: "workout",
   bodyDays: [1, 3, 5],
+  bodyCheckpointCount: DEFAULT_NUTRITION_CHECKPOINT_COUNT,
 } as const;
 
 export const PROOF_REACTION_OPTIONS = [
